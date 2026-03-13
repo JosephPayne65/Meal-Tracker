@@ -1,383 +1,1187 @@
-import { useState, useEffect } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Macro Tracker</title>
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Macros" />
+  <meta name="theme-color" content="#4A90D9" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: #f4f6f9;
+      color: #1a1a2e;
+      font-family: 'Nunito', 'Segoe UI', sans-serif;
+      min-height: 100vh;
+    }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: none; opacity: 0.5; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #f4f6f9; }
+    ::-webkit-scrollbar-thumb { background: #d0d5e0; border-radius: 99px; }
+    input:focus { outline: none; border-color: #4A90D9 !important; box-shadow: 0 0 0 3px rgba(74,144,217,0.12); }
+    button:active { transform: scale(0.97); }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-8px);} to { opacity:1; transform:translateY(0);} }
+    @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
 
-const STORAGE_KEY = "macro-tracker-data";
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const STORAGE_KEY = "macro-tracker-data-v2";
 
-const PRESET_FOODS = [
-  { name: "Chicken Breast (100g)", calories: 165, protein: 31, carbs: 0, fat: 3.6 },
-  { name: "Brown Rice (100g)", calories: 216, protein: 5, carbs: 45, fat: 1.8 },
-  { name: "Egg (large)", calories: 78, protein: 6, carbs: 0.6, fat: 5 },
-  { name: "Banana (medium)", calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
-  { name: "Greek Yogurt (100g)", calories: 59, protein: 10, carbs: 3.6, fat: 0.4 },
-  { name: "Oats (100g)", calories: 389, protein: 17, carbs: 66, fat: 7 },
-  { name: "Salmon (100g)", calories: 208, protein: 20, carbs: 0, fat: 13 },
-  { name: "Avocado (100g)", calories: 160, protein: 2, carbs: 9, fat: 15 },
-  { name: "Sweet Potato (100g)", calories: 86, protein: 1.6, carbs: 20, fat: 0.1 },
-  { name: "Almonds (30g)", calories: 173, protein: 6, carbs: 6, fat: 15 },
-  { name: "Flank Steak (100g)", calories: 192, protein: 27, carbs: 0, fat: 9 },
-];
+    const PRESET_FOODS = [
+      // Chicken
+      { name: "Chicken Breast (100g)", calories: 165, protein: 31, carbs: 0, fat: 3.6 },
+      { name: "Chicken Thigh (100g)", calories: 209, protein: 26, carbs: 0, fat: 11 },
+      { name: "Chicken Wing (100g)", calories: 203, protein: 18, carbs: 0, fat: 14 },
+      { name: "Rotisserie Chicken (100g)", calories: 190, protein: 27, carbs: 0, fat: 9 },
+      // Beef
+      { name: "Flank Steak (100g)", calories: 192, protein: 27, carbs: 0, fat: 9 },
+      { name: "Skirt Steak (100g)", calories: 204, protein: 27, carbs: 0, fat: 10 },
+      { name: "Ground Beef 80/20 (100g)", calories: 254, protein: 17, carbs: 0, fat: 20 },
+      { name: "Ground Beef 90/10 (100g)", calories: 196, protein: 20, carbs: 0, fat: 13 },
+      { name: "Ribeye Steak (100g)", calories: 291, protein: 24, carbs: 0, fat: 21 },
+      { name: "Sirloin Steak (100g)", calories: 207, protein: 26, carbs: 0, fat: 11 },
+      { name: "NY Strip Steak (100g)", calories: 223, protein: 25, carbs: 0, fat: 13 },
+      { name: "Brisket (100g)", calories: 246, protein: 26, carbs: 0, fat: 15 },
+      { name: "Short Ribs (100g)", calories: 295, protein: 18, carbs: 0, fat: 24 },
+      { name: "Chuck Roast (100g)", calories: 215, protein: 23, carbs: 0, fat: 13 },
+      { name: "T-Bone Steak (100g)", calories: 249, protein: 24, carbs: 0, fat: 17 },
+      { name: "Beef Tenderloin (100g)", calories: 218, protein: 26, carbs: 0, fat: 12 },
+      { name: "Round Roast (100g)", calories: 189, protein: 28, carbs: 0, fat: 8 },
+      { name: "Bottom Round (100g)", calories: 182, protein: 28, carbs: 0, fat: 7 },
+      { name: "Top Round (100g)", calories: 175, protein: 29, carbs: 0, fat: 5 },
+      { name: "Eye of Round (100g)", calories: 159, protein: 28, carbs: 0, fat: 4 },
+      { name: "Tri-Tip (100g)", calories: 218, protein: 26, carbs: 0, fat: 12 },
+      { name: "Flat Iron Steak (100g)", calories: 212, protein: 27, carbs: 0, fat: 11 },
+      { name: "Hanger Steak (100g)", calories: 198, protein: 26, carbs: 0, fat: 10 },
+      { name: "Denver Steak (100g)", calories: 226, protein: 25, carbs: 0, fat: 13 },
+      { name: "Beef Burger Patty (100g)", calories: 254, protein: 17, carbs: 0, fat: 20 },
+      { name: "Beef Meatballs (100g)", calories: 267, protein: 17, carbs: 6, fat: 19 },
+      { name: "Beef Stew (100g)", calories: 135, protein: 12, carbs: 8, fat: 6 },
+      { name: "Beef Stir Fry (100g)", calories: 175, protein: 18, carbs: 5, fat: 9 },
+      { name: "Beef Bacon (2 strips)", calories: 80, protein: 6, carbs: 0, fat: 6 },
+      // Other Proteins
+      { name: "Salmon (100g)", calories: 208, protein: 20, carbs: 0, fat: 13 },
+      { name: "Tuna canned (100g)", calories: 116, protein: 26, carbs: 0, fat: 1 },
+      { name: "Shrimp (100g)", calories: 99, protein: 24, carbs: 0, fat: 0.3 },
+      { name: "Egg (large)", calories: 78, protein: 6, carbs: 0.6, fat: 5 },
+      { name: "Egg Whites (3 large)", calories: 51, protein: 11, carbs: 0.7, fat: 0.2 },
+      { name: "Egg Whites carton (100ml)", calories: 40, protein: 8.8, carbs: 0.6, fat: 0.1 },
+      { name: "Chicken Breakfast Sausage (1 link)", calories: 70, protein: 8, carbs: 1, fat: 4 },
+      { name: "Chicken Breakfast Sausage Patty", calories: 110, protein: 12, carbs: 1, fat: 6 },
+      { name: "Turkey Bacon (2 strips)", calories: 70, protein: 8, carbs: 0.5, fat: 4 },
+      { name: "Ground Turkey 93/7 (100g)", calories: 150, protein: 21, carbs: 0, fat: 7 },
+      { name: "Ground Turkey 99/1 (100g)", calories: 120, protein: 26, carbs: 0, fat: 1 },
+      { name: "Ground Turkey 85/15 (100g)", calories: 176, protein: 20, carbs: 0, fat: 10 },
+      // Vegetables
+      { name: "Broccoli (100g)", calories: 34, protein: 2.8, carbs: 7, fat: 0.4 },
+      { name: "Spinach (100g)", calories: 23, protein: 2.9, carbs: 3.6, fat: 0.4 },
+      { name: "Kale (100g)", calories: 49, protein: 4.3, carbs: 9, fat: 0.9 },
+      { name: "Green Beans (100g)", calories: 31, protein: 1.8, carbs: 7, fat: 0.1 },
+      { name: "Asparagus (100g)", calories: 20, protein: 2.2, carbs: 3.9, fat: 0.1 },
+      { name: "Brussels Sprouts (100g)", calories: 43, protein: 3.4, carbs: 9, fat: 0.3 },
+      { name: "Zucchini (100g)", calories: 17, protein: 1.2, carbs: 3.1, fat: 0.3 },
+      { name: "Bell Pepper (100g)", calories: 31, protein: 1, carbs: 6, fat: 0.3 },
+      { name: "Mushrooms (100g)", calories: 22, protein: 3.1, carbs: 3.3, fat: 0.3 },
+      { name: "Onion (100g)", calories: 40, protein: 1.1, carbs: 9, fat: 0.1 },
+      { name: "Garlic (1 clove)", calories: 4, protein: 0.2, carbs: 1, fat: 0 },
+      { name: "Tomato (100g)", calories: 18, protein: 0.9, carbs: 3.9, fat: 0.2 },
+      { name: "Cucumber (100g)", calories: 15, protein: 0.7, carbs: 3.6, fat: 0.1 },
+      { name: "Celery (100g)", calories: 16, protein: 0.7, carbs: 3, fat: 0.2 },
+      { name: "Carrots (100g)", calories: 41, protein: 0.9, carbs: 10, fat: 0.2 },
+      { name: "Cauliflower (100g)", calories: 25, protein: 1.9, carbs: 5, fat: 0.3 },
+      { name: "Edamame (100g)", calories: 122, protein: 11, carbs: 10, fat: 5 },
+      { name: "Corn (100g)", calories: 86, protein: 3.2, carbs: 19, fat: 1.2 },
+      { name: "Romaine Lettuce (100g)", calories: 17, protein: 1.2, carbs: 3.3, fat: 0.3 },
+      { name: "Sweet Potato (100g)", calories: 86, protein: 1.6, carbs: 20, fat: 0.1 },
+      // Grains & Carbs
+      { name: "Brown Rice (100g)", calories: 216, protein: 5, carbs: 45, fat: 1.8 },
+      { name: "White Rice (100g)", calories: 206, protein: 4.3, carbs: 45, fat: 0.4 },
+      { name: "Oats (100g)", calories: 389, protein: 17, carbs: 66, fat: 7 },
+      { name: "Whole Wheat Bread (1 slice)", calories: 81, protein: 4, carbs: 15, fat: 1.1 },
+      { name: "White Bread (1 slice)", calories: 79, protein: 2.7, carbs: 15, fat: 1 },
+      { name: "Pasta cooked (100g)", calories: 158, protein: 5.8, carbs: 31, fat: 0.9 },
+      { name: "Quinoa cooked (100g)", calories: 120, protein: 4.4, carbs: 22, fat: 1.9 },
+      { name: "English Muffin (1 whole)", calories: 134, protein: 4.4, carbs: 26, fat: 1 },
+      { name: "Whole Wheat English Muffin", calories: 134, protein: 6, carbs: 27, fat: 1.5 },
+      // Tortillas & Mexican
+      { name: "Flour Tortilla (small 6\")", calories: 146, protein: 3.9, carbs: 25, fat: 3.5 },
+      { name: "Flour Tortilla (large 10\")", calories: 218, protein: 5.8, carbs: 36, fat: 5.5 },
+      { name: "Corn Tortilla (1 small)", calories: 52, protein: 1.4, carbs: 11, fat: 0.7 },
+      { name: "Taco Shell (1 hard)", calories: 62, protein: 0.9, carbs: 8.3, fat: 3 },
+      { name: "Beef Taco (1 taco)", calories: 210, protein: 13, carbs: 14, fat: 11 },
+      { name: "Chicken Taco (1 taco)", calories: 185, protein: 14, carbs: 14, fat: 7 },
+      { name: "Beef Burrito (1 burrito)", calories: 490, protein: 24, carbs: 57, fat: 18 },
+      { name: "Chicken Burrito (1 burrito)", calories: 450, protein: 26, carbs: 55, fat: 14 },
+      { name: "Beef Quesadilla (1 serving)", calories: 520, protein: 28, carbs: 40, fat: 28 },
+      { name: "Chicken Quesadilla (1 serving)", calories: 480, protein: 30, carbs: 40, fat: 22 },
+      { name: "Refried Beans (100g)", calories: 102, protein: 6, carbs: 16, fat: 2.3 },
+      { name: "Black Beans (100g)", calories: 132, protein: 8.9, carbs: 24, fat: 0.5 },
+      { name: "Pinto Beans (100g)", calories: 143, protein: 9, carbs: 27, fat: 0.7 },
+      { name: "Mexican Rice (100g)", calories: 150, protein: 3, carbs: 28, fat: 2.5 },
+      { name: "Guacamole (2 tbsp)", calories: 50, protein: 0.7, carbs: 3, fat: 4.5 },
+      { name: "Salsa (2 tbsp)", calories: 10, protein: 0.5, carbs: 2.2, fat: 0.1 },
+      { name: "Sour Cream (2 tbsp)", calories: 60, protein: 0.9, carbs: 1.2, fat: 6 },
+      { name: "Shredded Cheddar (30g)", calories: 114, protein: 7, carbs: 0.4, fat: 9.4 },
+      { name: "Chips & Salsa (1 serving)", calories: 180, protein: 2.5, carbs: 25, fat: 8 },
+      { name: "Nachos (100g)", calories: 310, protein: 9, carbs: 33, fat: 17 },
+      { name: "Enchilada Beef (1)", calories: 320, protein: 18, carbs: 28, fat: 15 },
+      { name: "Enchilada Chicken (1)", calories: 280, protein: 20, carbs: 28, fat: 11 },
+      { name: "Tamale (1)", calories: 285, protein: 8, carbs: 35, fat: 13 },
+      { name: "Carnitas (100g)", calories: 232, protein: 27, carbs: 0, fat: 13 },
+      { name: "Carne Asada (100g)", calories: 210, protein: 26, carbs: 0, fat: 11 },
+      { name: "Barbacoa (100g)", calories: 215, protein: 26, carbs: 2, fat: 12 },
+      { name: "Birria (100g)", calories: 220, protein: 25, carbs: 2, fat: 12 },
+      { name: "Horchata (240ml)", calories: 160, protein: 1.5, carbs: 34, fat: 2.5 },
+      // Doughnuts
+      { name: "Glazed Doughnut (1)", calories: 269, protein: 3.5, carbs: 32, fat: 14 },
+      { name: "Chocolate Glazed Doughnut (1)", calories: 300, protein: 4, carbs: 36, fat: 16 },
+      { name: "Jelly Doughnut (1)", calories: 289, protein: 5, carbs: 36, fat: 14 },
+      { name: "Cream Filled Doughnut (1)", calories: 307, protein: 5, carbs: 35, fat: 17 },
+      { name: "Doughnut Hole (1)", calories: 59, protein: 0.9, carbs: 7, fat: 3.2 },
+      { name: "Old Fashioned Doughnut (1)", calories: 320, protein: 4, carbs: 33, fat: 19 },
+      { name: "Cruller (1)", calories: 251, protein: 3.5, carbs: 26, fat: 15 },
+      // Dairy & Alternatives
+      { name: "Greek Yogurt (100g)", calories: 59, protein: 10, carbs: 3.6, fat: 0.4 },
+      { name: "Whole Milk (240ml)", calories: 149, protein: 8, carbs: 12, fat: 8 },
+      { name: "2% Milk (240ml)", calories: 122, protein: 8, carbs: 12, fat: 5 },
+      { name: "Oat Milk Original (240ml)", calories: 120, protein: 3, carbs: 16, fat: 5 },
+      { name: "Oat Milk Barista (240ml)", calories: 130, protein: 3, carbs: 18, fat: 5 },
+      { name: "Oat Milk Unsweetened (240ml)", calories: 90, protein: 3, carbs: 14, fat: 3.5 },
+      { name: "Oat Milk Extra Creamy (240ml)", calories: 150, protein: 4, carbs: 19, fat: 6 },
+      { name: "Oat Milk Chocolate (240ml)", calories: 160, protein: 4, carbs: 24, fat: 5 },
+      // Sour Cream
+      { name: "Sour Cream Regular (2 tbsp)", calories: 60, protein: 0.9, carbs: 1.2, fat: 6 },
+      { name: "Sour Cream Light (2 tbsp)", calories: 40, protein: 1, carbs: 2, fat: 3 },
+      { name: "Sour Cream Fat Free (2 tbsp)", calories: 30, protein: 1.5, carbs: 5, fat: 0 },
+      { name: "Daisy Sour Cream (2 tbsp)", calories: 60, protein: 1, carbs: 1, fat: 6 },
+      { name: "Daisy Light Sour Cream (2 tbsp)", calories: 40, protein: 1, carbs: 2, fat: 3 },
+      // Sliced Cheese
+      { name: "American Cheese Slice (1 slice)", calories: 60, protein: 3.5, carbs: 1, fat: 5 },
+      { name: "Cheddar Sliced (1 slice / 28g)", calories: 113, protein: 7, carbs: 0.4, fat: 9 },
+      { name: "Provolone Sliced (1 slice / 28g)", calories: 100, protein: 7, carbs: 0.6, fat: 7.5 },
+      { name: "Swiss Sliced (1 slice / 28g)", calories: 106, protein: 8, carbs: 1.5, fat: 7.9 },
+      { name: "Pepper Jack Sliced (1 slice / 28g)", calories: 110, protein: 6, carbs: 0.5, fat: 9 },
+      { name: "Muenster Sliced (1 slice / 28g)", calories: 104, protein: 6.5, carbs: 0.3, fat: 8.5 },
+      { name: "Colby Jack Sliced (1 slice / 28g)", calories: 110, protein: 6.5, carbs: 0.5, fat: 9 },
+      { name: "Gouda Sliced (1 slice / 28g)", calories: 101, protein: 7, carbs: 0.6, fat: 7.8 },
+      { name: "Havarti Sliced (1 slice / 28g)", calories: 120, protein: 5.5, carbs: 0.5, fat: 10 },
+      // Shredded Cheese
+      { name: "Shredded Cheddar (30g)", calories: 114, protein: 7, carbs: 0.4, fat: 9.4 },
+      { name: "Shredded Mozzarella (30g)", calories: 85, protein: 6.3, carbs: 0.6, fat: 6.3 },
+      { name: "Shredded Colby Jack (30g)", calories: 110, protein: 6.5, carbs: 0.5, fat: 9 },
+      { name: "Shredded Pepper Jack (30g)", calories: 110, protein: 6, carbs: 0.5, fat: 9 },
+      { name: "Shredded Swiss (30g)", calories: 108, protein: 8, carbs: 1.5, fat: 8 },
+      { name: "Shredded Parmesan (30g)", calories: 122, protein: 10.9, carbs: 1, fat: 8.1 },
+      { name: "Shredded Italian Blend (30g)", calories: 90, protein: 6, carbs: 1, fat: 7 },
+      { name: "Shredded Mexican 4-Cheese (30g)", calories: 110, protein: 6.5, carbs: 0.5, fat: 9 },
+      // Mexican / Latino Cheeses
+      { name: "Queso Fresco (30g)", calories: 80, protein: 5, carbs: 1, fat: 6 },
+      { name: "Cotija Cheese (30g)", calories: 110, protein: 6, carbs: 0.5, fat: 9 },
+      { name: "Oaxaca Cheese (30g)", calories: 100, protein: 6.5, carbs: 0.5, fat: 8 },
+      { name: "Queso Blanco (30g)", calories: 90, protein: 5.5, carbs: 0.5, fat: 7.5 },
+      { name: "Panela Cheese (30g)", calories: 75, protein: 6, carbs: 1.5, fat: 5 },
+      { name: "Asadero Cheese (30g)", calories: 100, protein: 6, carbs: 0.5, fat: 8 },
+      { name: "Queso Dip (2 tbsp)", calories: 50, protein: 2, carbs: 3, fat: 3.5 },
+      // Pancakes
+      { name: "Pancake Plain (1 medium)", calories: 175, protein: 5, carbs: 22, fat: 7 },
+      { name: "Pancake Buttermilk (1 medium)", calories: 190, protein: 5, carbs: 24, fat: 8 },
+      { name: "Pancake Blueberry (1 medium)", calories: 185, protein: 4, carbs: 25, fat: 7 },
+      { name: "Pancake Whole Wheat (1 medium)", calories: 160, protein: 6, carbs: 22, fat: 6 },
+      { name: "Pancake Protein (1 medium)", calories: 130, protein: 10, carbs: 16, fat: 3 },
+      { name: "Pancake Stack 3 w/ syrup", calories: 520, protein: 10, carbs: 90, fat: 14 },
+      { name: "IHOP Buttermilk Pancake (1)", calories: 110, protein: 4, carbs: 16, fat: 4 },
+      { name: "Kodiak Cakes Pancake (1 made)", calories: 140, protein: 10, carbs: 18, fat: 3 },
+      { name: "Pancake Syrup (2 tbsp)", calories: 100, protein: 0, carbs: 26, fat: 0 },
+      { name: "Pancake Syrup Sugar Free (2 tbsp)", calories: 15, protein: 0, carbs: 4, fat: 0 },
+      { name: "Butter on Pancakes (1 pat)", calories: 36, protein: 0, carbs: 0, fat: 4 },
+      // Jimmy John's - Cold Subs (no pork)
+      { name: "JJ #2 Big John - Roast Beef (whole)", calories: 490, protein: 31, carbs: 43, fat: 21 },
+      { name: "JJ #3 Totally Tuna (whole)", calories: 640, protein: 28, carbs: 44, fat: 39 },
+      { name: "JJ #4 Turkey Tom (whole)", calories: 490, protein: 27, carbs: 44, fat: 21 },
+      { name: "JJ #6 Vegetarian (whole)", calories: 600, protein: 23, carbs: 49, fat: 35 },
+      { name: "JJ #8 Billy Club - Turkey & Roast Beef (whole)", calories: 650, protein: 37, carbs: 45, fat: 32 },
+      { name: "JJ #10 Hunter's Club - Roast Beef (whole)", calories: 670, protein: 42, carbs: 45, fat: 32 },
+      { name: "JJ #12 Beach Club - Turkey (whole)", calories: 560, protein: 33, carbs: 46, fat: 25 },
+      { name: "JJ #13 Gourmet Veggie Club (whole)", calories: 650, protein: 25, carbs: 50, fat: 39 },
+      { name: "JJ Turkey Unwich (lettuce wrap)", calories: 190, protein: 22, carbs: 5, fat: 9 },
+      { name: "JJ Roast Beef Unwich (lettuce wrap)", calories: 260, protein: 24, carbs: 3, fat: 17 },
+      { name: "JJ Tuna Unwich (lettuce wrap)", calories: 360, protein: 20, carbs: 3, fat: 29 },
+      { name: "JJ Slim #2 Big John - Roast Beef (whole)", calories: 340, protein: 21, carbs: 42, fat: 9 },
+      { name: "JJ Slim #4 Turkey Tom (whole)", calories: 330, protein: 19, carbs: 42, fat: 8 },
+      // Jimmy John's - Hot Subs (no pork)
+      { name: "JJ Totally Tuna Hot Sub (whole)", calories: 650, protein: 29, carbs: 45, fat: 39 },
+      { name: "JJ Turkey Avocado Hot Sub (whole)", calories: 590, protein: 30, carbs: 46, fat: 27 },
+      { name: "JJ Roast Beef & Cheese Hot Sub (whole)", calories: 620, protein: 36, carbs: 45, fat: 29 },
+      { name: "JJ Chicken Club Hot Sub (whole)", calories: 650, protein: 40, carbs: 46, fat: 27 },
+      { name: "JJ Kickin Ranch Chicken Hot Sub (whole)", calories: 700, protein: 42, carbs: 48, fat: 30 },
+      { name: "JJ Chips (1 bag)", calories: 210, protein: 3, carbs: 20, fat: 13 },
+      { name: "JJ Chocolate Chunk Cookie (1)", calories: 420, protein: 5, carbs: 58, fat: 20 },
+      // Jersey Mike's - Cold Subs (no pork)
+      { name: "JM #3 American Classic - Turkey & Roast Beef (regular)", calories: 680, protein: 36, carbs: 60, fat: 31 },
+      { name: "JM #7 Turkey & Provolone (regular)", calories: 570, protein: 36, carbs: 60, fat: 20 },
+      { name: "JM #8 Club Sub - Turkey, Roast Beef & Provolone (regular)", calories: 680, protein: 44, carbs: 60, fat: 28 },
+      { name: "JM #9 Club Supreme - Turkey & Roast Beef (regular)", calories: 780, protein: 48, carbs: 60, fat: 37 },
+      { name: "JM #42 Chicken & Bacon Ranch (regular)", calories: 810, protein: 49, carbs: 62, fat: 39 },
+      { name: "JM #55 Big Kahuna Chicken Cheese Steak (regular)", calories: 740, protein: 48, carbs: 64, fat: 31 },
+      { name: "JM #3 American Classic Mini", calories: 370, protein: 19, carbs: 32, fat: 17 },
+      { name: "JM #7 Turkey Mini Sub", calories: 310, protein: 19, carbs: 32, fat: 11 },
+      { name: "JM #8 Club Mini Sub", calories: 370, protein: 24, carbs: 32, fat: 15 },
+      { name: "JM Turkey Wrap", calories: 530, protein: 33, carbs: 49, fat: 21 },
+      { name: "JM Chicken Caesar Wrap", calories: 600, protein: 38, carbs: 50, fat: 26 },
+      // Jersey Mike's - Hot Subs (no pork)
+      { name: "JM #17 Super Steak - Beef & Onion (regular)", calories: 730, protein: 50, carbs: 62, fat: 31 },
+      { name: "JM Chicken Philly Cheese Steak (regular)", calories: 650, protein: 45, carbs: 63, fat: 24 },
+      { name: "JM Chipotle Chicken Cheese Steak (regular)", calories: 720, protein: 44, carbs: 65, fat: 30 },
+      { name: "JM Buffalo Chicken Cheese Steak (regular)", calories: 690, protein: 45, carbs: 64, fat: 27 },
+      { name: "JM Grilled Chicken & Spinach (regular)", calories: 590, protein: 46, carbs: 61, fat: 18 },
+      { name: "JM Chicken Parmesan Hot Sub (regular)", calories: 780, protein: 48, carbs: 72, fat: 29 },
+      { name: "JM Big Kahuna Chicken (regular)", calories: 740, protein: 48, carbs: 64, fat: 31 },
+      { name: "JM Meatball & Cheese Hot Sub (regular)", calories: 820, protein: 44, carbs: 70, fat: 36 },
+      { name: "JM #17 Super Steak Mini", calories: 400, protein: 27, carbs: 33, fat: 17 },
+      { name: "JM Chicken Philly Mini", calories: 360, protein: 25, carbs: 34, fat: 13 },
+      { name: "JM Rosemary Parmesan Roll (bread only)", calories: 260, protein: 10, carbs: 46, fat: 4 },
+      { name: "JM Chips (1 bag)", calories: 200, protein: 3, carbs: 19, fat: 13 },
+      // Fruits & Snacks
+      { name: "Banana (medium)", calories: 89, protein: 1.1, carbs: 23, fat: 0.3 },
+      { name: "Apple (medium)", calories: 95, protein: 0.5, carbs: 25, fat: 0.3 },
+      { name: "Blueberries (100g)", calories: 57, protein: 0.7, carbs: 14, fat: 0.3 },
+      { name: "Strawberries (100g)", calories: 32, protein: 0.7, carbs: 7.7, fat: 0.3 },
+      { name: "Avocado (100g)", calories: 160, protein: 2, carbs: 9, fat: 15 },
+      { name: "Almonds (30g)", calories: 173, protein: 6, carbs: 6, fat: 15 },
+      // Granola
+      { name: "Granola Generic (1/2 cup)", calories: 209, protein: 5, carbs: 34, fat: 7 },
+      { name: "KIND Granola Cinnamon Oat (1/2 cup)", calories: 200, protein: 4, carbs: 28, fat: 8 },
+      { name: "Nature Valley Oats & Honey (2 bars)", calories: 190, protein: 4, carbs: 29, fat: 7 },
+      { name: "Quaker Oats Granola (1/2 cup)", calories: 210, protein: 4, carbs: 36, fat: 6 },
+      { name: "Bear Naked Granola (1/2 cup)", calories: 210, protein: 4, carbs: 28, fat: 9 },
+      { name: "Bob's Red Mill Granola (1/2 cup)", calories: 210, protein: 5, carbs: 33, fat: 7 },
+      { name: "Purely Elizabeth Granola (1/2 cup)", calories: 210, protein: 4, carbs: 26, fat: 10 },
+      { name: "Kashi Go Lean Crunch Granola (1/2 cup)", calories: 200, protein: 9, carbs: 35, fat: 3 },
+      { name: "Granola with Milk (1 cup + milk)", calories: 350, protein: 11, carbs: 57, fat: 9 },
+      // Chips - Regular
+      { name: "Lays Classic Chips (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Lays BBQ (1 oz / 28g)", calories: 150, protein: 2, carbs: 16, fat: 9 },
+      { name: "Lays Cheddar & Sour Cream (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Lays Sour Cream & Onion (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Doritos Nacho Cheese (1 oz / 28g)", calories: 150, protein: 2, carbs: 18, fat: 8 },
+      { name: "Doritos Cool Ranch (1 oz / 28g)", calories: 150, protein: 2, carbs: 18, fat: 8 },
+      { name: "Doritos Spicy Nacho (1 oz / 28g)", calories: 150, protein: 2, carbs: 18, fat: 8 },
+      { name: "Doritos Flamin Hot (1 oz / 28g)", calories: 150, protein: 2, carbs: 17, fat: 8 },
+      { name: "Pringles Original (16 chips / 28g)", calories: 150, protein: 1, carbs: 16, fat: 9 },
+      { name: "Pringles BBQ (16 chips / 28g)", calories: 150, protein: 1, carbs: 16, fat: 9 },
+      { name: "Pringles Cheddar Cheese (16 chips / 28g)", calories: 150, protein: 1, carbs: 16, fat: 9 },
+      { name: "Pringles Sour Cream & Onion (16 chips / 28g)", calories: 150, protein: 1, carbs: 16, fat: 9 },
+      { name: "Ruffles Original (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Ruffles Cheddar & Sour Cream (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Ruffles BBQ (1 oz / 28g)", calories: 150, protein: 2, carbs: 16, fat: 9 },
+      { name: "Cheetos Crunchy (1 oz / 28g)", calories: 160, protein: 2, carbs: 15, fat: 10 },
+      { name: "Cheetos Puffs (1 oz / 28g)", calories: 150, protein: 2, carbs: 16, fat: 9 },
+      { name: "Cheetos Flamin Hot (1 oz / 28g)", calories: 170, protein: 2, carbs: 16, fat: 11 },
+      { name: "Fritos Original (1 oz / 28g)", calories: 160, protein: 2, carbs: 16, fat: 10 },
+      { name: "Fritos BBQ (1 oz / 28g)", calories: 160, protein: 2, carbs: 16, fat: 10 },
+      { name: "Tostitos Original (1 oz / 28g)", calories: 140, protein: 2, carbs: 19, fat: 6 },
+      { name: "Kettle Chips Sea Salt (1 oz / 28g)", calories: 150, protein: 2, carbs: 17, fat: 8 },
+      { name: "Kettle Chips BBQ (1 oz / 28g)", calories: 150, protein: 2, carbs: 17, fat: 8 },
+      { name: "Kettle Chips Cheddar Beer (1 oz / 28g)", calories: 150, protein: 2, carbs: 17, fat: 8 },
+      // Sun Chips
+      { name: "Sun Chips Original (1 oz / 28g)", calories: 140, protein: 2, carbs: 19, fat: 6 },
+      { name: "Sun Chips Harvest Cheddar (1 oz / 28g)", calories: 140, protein: 2, carbs: 19, fat: 6 },
+      { name: "Sun Chips Garden Salsa (1 oz / 28g)", calories: 140, protein: 2, carbs: 19, fat: 6 },
+      { name: "Sun Chips French Onion (1 oz / 28g)", calories: 140, protein: 2, carbs: 19, fat: 6 },
+      // Chips - Baked
+      { name: "Baked Lays Original (1 oz / 28g)", calories: 120, protein: 2, carbs: 23, fat: 2 },
+      { name: "Baked Doritos Nacho (1 oz / 28g)", calories: 120, protein: 2, carbs: 21, fat: 3 },
+      { name: "Baked Tostitos (1 oz / 28g)", calories: 120, protein: 2, carbs: 21, fat: 3 },
+      { name: "Baked Ruffles (1 oz / 28g)", calories: 120, protein: 2, carbs: 23, fat: 2 },
+      { name: "Popchips Sea Salt (1 oz / 28g)", calories: 120, protein: 2, carbs: 20, fat: 3.5 },
+      { name: "Skinny Pop Popcorn (1 oz / 28g)", calories: 110, protein: 3, carbs: 21, fat: 2 },
+      { name: "Boom Chicka Pop Sea Salt (1 oz / 28g)", calories: 130, protein: 3, carbs: 20, fat: 5 },
+    ];
 
-const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack"];
-const todayKey = () => new Date().toISOString().split("T")[0];
-const emptyGoals = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
+    const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack"];
+    const MEAL_ICONS = { Breakfast: "🌅", Lunch: "☀️", Dinner: "🌙", Snack: "🍎" };
+    const todayKey = () => new Date().toISOString().split("T")[0];
+    const emptyGoals = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
 
-const inputStyle = {
-  width: "100%",
-  background: "#1a1a1a",
-  border: "1px solid #2a2a2a",
-  borderRadius: 10,
-  padding: "10px 12px",
-  color: "#e0e0e0",
-  fontSize: 14,
-  outline: "none",
-  boxSizing: "border-box",
-};
-
-const MacroBar = ({ label, value, goal, color }) => {
-  const pct = Math.min((value / goal) * 100, 100);
-  const over = value > goal;
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", color: "#888" }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 700, color: over ? "#ff6b6b" : "#e0e0e0" }}>
-          {Math.round(value)}<span style={{ color: "#555", fontWeight: 400 }}>/{goal}{label === "Calories" ? "" : "g"}</span>
-        </span>
-      </div>
-      <div style={{ height: 8, background: "#1e1e1e", borderRadius: 999, overflow: "hidden" }}>
-        <div style={{
-          height: "100%", width: `${pct}%`, borderRadius: 999,
-          background: over ? "#ff6b6b" : color,
-          transition: "width 0.5s cubic-bezier(.4,0,.2,1)",
-          boxShadow: over ? "0 0 8px #ff6b6b88" : `0 0 8px ${color}66`,
-        }} />
-      </div>
-    </div>
-  );
-};
-
-export default function MacroTracker() {
-  const [tab, setTab] = useState("log");
-  const [goals, setGoals] = useState(emptyGoals);
-  const [entries, setEntries] = useState({});
-  const [form, setForm] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: "Breakfast", qty: 1 });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showPresets, setShowPresets] = useState(false);
-  const [editGoals, setEditGoals] = useState(false);
-  const [goalDraft, setGoalDraft] = useState(emptyGoals);
-  const [selectedDate, setSelectedDate] = useState(todayKey());
-  const [toast, setToast] = useState(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const d = JSON.parse(stored);
-        if (d.goals) setGoals(d.goals);
-        if (d.entries) setEntries(d.entries);
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries }));
-    } catch {}
-  }, [goals, entries, mounted]);
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2200);
-  };
-
-  const dayEntries = entries[selectedDate] || [];
-  const totals = dayEntries.reduce(
-    (acc, e) => ({
-      calories: acc.calories + e.calories * e.qty,
-      protein: acc.protein + e.protein * e.qty,
-      carbs: acc.carbs + e.carbs * e.qty,
-      fat: acc.fat + e.fat * e.qty,
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  );
-
-  const addEntry = () => {
-    if (!form.name || !form.calories) return;
-    const entry = {
-      id: Date.now(),
-      name: form.name,
-      calories: parseFloat(form.calories) || 0,
-      protein: parseFloat(form.protein) || 0,
-      carbs: parseFloat(form.carbs) || 0,
-      fat: parseFloat(form.fat) || 0,
-      meal: form.meal,
-      qty: parseFloat(form.qty) || 1,
+    const C = {
+      blue: "#4A90D9",
+      blueDark: "#2f6fab",
+      blueLight: "#e8f2fd",
+      green: "#34c97e",
+      greenLight: "#e6f9f0",
+      orange: "#f5a623",
+      orangeLight: "#fff3e0",
+      red: "#e8453c",
+      redLight: "#fdecea",
+      purple: "#9b6dff",
+      purpleLight: "#f0ebff",
+      bg: "#f4f6f9",
+      card: "#ffffff",
+      border: "#e8ecf2",
+      text: "#1a1a2e",
+      textMid: "#5a6482",
+      textLight: "#9aa3bc",
     };
-    setEntries((prev) => ({ ...prev, [selectedDate]: [...(prev[selectedDate] || []), entry] }));
-    setForm({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: form.meal, qty: 1 });
-    setSearchQuery("");
-    showToast(`✓ Added ${entry.name}`);
-  };
 
-  const removeEntry = (id) => {
-    setEntries((prev) => ({ ...prev, [selectedDate]: (prev[selectedDate] || []).filter((e) => e.id !== id) }));
-  };
+    const inputStyle = {
+      width: "100%", background: "#f8fafc", border: `1.5px solid ${C.border}`,
+      borderRadius: 12, padding: "11px 14px", color: C.text,
+      fontSize: 15, outline: "none", boxSizing: "border-box",
+      fontFamily: "inherit", transition: "border-color 0.2s",
+    };
 
-  const selectPreset = (p) => {
-    setForm((f) => ({ ...f, name: p.name, calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat }));
-    setShowPresets(false);
-    setSearchQuery("");
-  };
-
-  const saveGoals = () => {
-    setGoals(goalDraft);
-    setEditGoals(false);
-    showToast("Goals updated!");
-  };
-
-  const mealGroups = MEAL_TYPES.map((m) => ({
-    meal: m,
-    items: dayEntries.filter((e) => e.meal === m),
-  })).filter((g) => g.items.length > 0);
-
-  const filtered = PRESET_FOODS.filter((p) => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const caloriesLeft = goals.calories - totals.calories;
-  const ringPct = Math.min((totals.calories / goals.calories) * 100, 100);
-
-  if (!mounted) return null;
-
-  return (
-    <div style={{ minHeight: "100vh", background: "#111", color: "#e0e0e0", fontFamily: "'DM Sans', 'Segoe UI', sans-serif", display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", position: "relative" }}>
-      {toast && (
-        <div style={{ position: "fixed", top: 18, left: "50%", transform: "translateX(-50%)", background: "#1a2e1a", color: "#7cfc7c", border: "1px solid #2a4a2a", padding: "10px 22px", borderRadius: 99, fontSize: 13, fontWeight: 600, zIndex: 999, whiteSpace: "nowrap", boxShadow: "0 4px 24px #0008" }}>
-          {toast}
-        </div>
-      )}
-
-      {/* Header */}
-      <div style={{ padding: "28px 24px 0", borderBottom: "1px solid #1e1e1e" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <div>
-            <div style={{ fontSize: 11, letterSpacing: 3, textTransform: "uppercase", color: "#555", marginBottom: 2 }}>Daily Tracker</div>
-            <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -1, color: "#fff" }}>Macros</div>
-          </div>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={{ background: "#1a1a1a", border: "1px solid #2a2a2a", color: "#aaa", borderRadius: 10, padding: "7px 12px", fontSize: 13, cursor: "pointer" }} />
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 20, padding: "22px 0 20px" }}>
-          <div style={{ position: "relative", width: 90, height: 90, flexShrink: 0 }}>
-            <svg width={90} height={90} viewBox="0 0 90 90">
-              <circle cx={45} cy={45} r={38} fill="none" stroke="#1e1e1e" strokeWidth={8} />
-              <circle cx={45} cy={45} r={38} fill="none" stroke={totals.calories > goals.calories ? "#ff6b6b" : "#a8ff78"} strokeWidth={8} strokeDasharray={`${(ringPct / 100) * 2 * Math.PI * 38} ${2 * Math.PI * 38}`} strokeDashoffset={2 * Math.PI * 38 * 0.25} strokeLinecap="round" style={{ transition: "stroke-dasharray 0.6s cubic-bezier(.4,0,.2,1)", filter: "drop-shadow(0 0 6px #a8ff7888)" }} />
+    function MacroCircle({ value, goal, color, label, unit="" }) {
+      const pct = Math.min((value / goal) * 100, 100);
+      const over = value > goal;
+      const r = 26, circ = 2 * Math.PI * r;
+      return (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+          <div style={{ position: "relative", width: 64, height: 64 }}>
+            <svg width={64} height={64} viewBox="0 0 64 64">
+              <circle cx={32} cy={32} r={r} fill="none" stroke={C.border} strokeWidth={5} />
+              <circle cx={32} cy={32} r={r} fill="none"
+                stroke={over ? C.red : color}
+                strokeWidth={5}
+                strokeDasharray={`${(pct/100)*circ} ${circ}`}
+                strokeDashoffset={circ*0.25}
+                strokeLinecap="round"
+                style={{ transition: "stroke-dasharray 0.5s ease" }}
+              />
             </svg>
-            <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", textAlign: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", lineHeight: 1 }}>{Math.round(totals.calories)}</div>
-              <div style={{ fontSize: 9, color: "#555", letterSpacing: 1 }}>kcal</div>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: over ? C.red : C.text, lineHeight: 1 }}>{Math.round(value)}</div>
+              <div style={{ fontSize: 9, color: C.textLight, fontWeight: 600 }}>{unit || "g"}</div>
             </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <MacroBar label="Calories" value={totals.calories} goal={goals.calories} color="#a8ff78" />
-            <MacroBar label="Protein" value={totals.protein} goal={goals.protein} color="#60c8ff" />
-            <MacroBar label="Carbs" value={totals.carbs} goal={goals.carbs} color="#ffcc60" />
-            <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color="#ff8c60" />
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</div>
+          <div style={{ fontSize: 10, color: C.textLight }}>{goal}{unit || "g"}</div>
+        </div>
+      );
+    }
+
+    function MacroBar({ label, value, goal, color }) {
+      const pct = Math.min((value / goal) * 100, 100);
+      const over = value > goal;
+      const left = goal - value;
+      return (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 5 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.textMid }}>{label}</span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <span style={{ fontSize: 12, color: C.textLight }}>{Math.round(value)}g</span>
+              <span style={{ fontSize: 11, color: C.textLight }}>·</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: over ? C.red : C.green }}>
+                {over ? `${Math.round(Math.abs(left))}g over` : `${Math.round(left)}g left`}
+              </span>
+            </div>
+          </div>
+          <div style={{ height: 7, background: C.border, borderRadius: 99, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: over ? C.red : color, transition: "width 0.5s ease" }} />
           </div>
         </div>
+      );
+    }
 
-        <div style={{ display: "flex", gap: 2, marginBottom: -1 }}>
-          {["log", "add", "goals"].map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{ padding: "9px 18px", background: "none", border: "none", borderBottom: tab === t ? "2px solid #a8ff78" : "2px solid transparent", color: tab === t ? "#a8ff78" : "#555", fontWeight: 700, fontSize: 13, textTransform: "capitalize", cursor: "pointer", letterSpacing: 0.5 }}>
-              {t === "log" ? "Today's Log" : t === "add" ? "+ Add Food" : "⚙ Goals"}
-            </button>
-          ))}
-        </div>
-      </div>
+    function App() {
+      const [tab, setTab] = useState("log");
+      const [goals, setGoals] = useState(emptyGoals);
+      const [entries, setEntries] = useState({});
+      const [form, setForm] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: "Breakfast", qty: 1 });
+      const [weightMode, setWeightMode] = useState(false);
+      const [weightUnit, setWeightUnit] = useState("g");
+      const [weightAmount, setWeightAmount] = useState("");
+      const [per100, setPer100] = useState({ calories: "", protein: "", carbs: "", fat: "" });
+      const [searchQuery, setSearchQuery] = useState("");
+      const [showPresets, setShowPresets] = useState(false);
+      const [editGoals, setEditGoals] = useState(false);
+      const [goalDraft, setGoalDraft] = useState(emptyGoals);
+      const [selectedDate, setSelectedDate] = useState(todayKey());
+      const [toast, setToast] = useState(null);
+      const [goalsSubTab, setGoalsSubTab] = useState("view");
+      const [calc, setCalc] = useState({
+        sex: "male", age: "", unit: "imperial",
+        heightFt: "", heightIn: "", heightCm: "",
+        currentWeight: "", goalWeight: "", bodyFat: "",
+        activity: "moderate", macroSplit: "balanced",
+        customCarbs: "", customProtein: "", customFat: "",
+      });
 
-      {/* Content */}
-      <div style={{ flex: 1, padding: "20px 20px 100px", overflowY: "auto" }}>
+      useEffect(() => {
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            const d = JSON.parse(stored);
+            if (d.goals) setGoals(d.goals);
+            if (d.entries) setEntries(d.entries);
+          }
+        } catch {}
+      }, []);
 
-        {/* LOG TAB */}
-        {tab === "log" && (
-          <div>
-            {dayEntries.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#444" }}>
-                <div style={{ fontSize: 40, marginBottom: 12 }}>🥗</div>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>No meals logged yet</div>
-                <div style={{ fontSize: 13, marginTop: 6 }}>Tap &quot;+ Add Food&quot; to get started</div>
+      useEffect(() => {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries })); } catch {}
+      }, [goals, entries]);
+
+      const showToast = (msg, type="success") => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 2200);
+      };
+
+      const dayEntries = entries[selectedDate] || [];
+      const totals = dayEntries.reduce(
+        (acc, e) => ({ calories: acc.calories + e.calories * e.qty, protein: acc.protein + e.protein * e.qty, carbs: acc.carbs + e.carbs * e.qty, fat: acc.fat + e.fat * e.qty }),
+        { calories: 0, protein: 0, carbs: 0, fat: 0 }
+      );
+
+      const addEntry = () => {
+        let cal, pro, carb, fat, entryName;
+        if (weightMode) {
+          if (!form.name || !weightAmount || !per100.calories) return;
+          const grams = weightUnit === "oz" ? parseFloat(weightAmount) * 28.3495 : parseFloat(weightAmount);
+          const ratio = grams / 100;
+          cal = (parseFloat(per100.calories)||0) * ratio;
+          pro = (parseFloat(per100.protein)||0) * ratio;
+          carb = (parseFloat(per100.carbs)||0) * ratio;
+          fat = (parseFloat(per100.fat)||0) * ratio;
+          entryName = `${form.name} (${parseFloat(weightAmount)}${weightUnit})`;
+        } else {
+          if (!form.name || !form.calories) return;
+          cal = parseFloat(form.calories)||0;
+          pro = parseFloat(form.protein)||0;
+          carb = parseFloat(form.carbs)||0;
+          fat = parseFloat(form.fat)||0;
+          entryName = form.name;
+        }
+        const entry = { id: Date.now(), name: entryName, calories: cal, protein: pro, carbs: carb, fat, meal: form.meal, qty: weightMode ? 1 : (parseFloat(form.qty)||1) };
+        setEntries(prev => ({ ...prev, [selectedDate]: [...(prev[selectedDate]||[]), entry] }));
+        setForm({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: form.meal, qty: 1 });
+        setPer100({ calories: "", protein: "", carbs: "", fat: "" });
+        setWeightAmount("");
+        setSearchQuery("");
+        setShowPresets(false);
+        showToast(`Added ${entryName}`);
+        setTab("log");
+      };
+
+      const removeEntry = (id) => setEntries(prev => ({ ...prev, [selectedDate]: (prev[selectedDate]||[]).filter(e => e.id !== id) }));
+
+      const selectPreset = (p) => {
+        if (weightMode) {
+          setForm(f => ({ ...f, name: p.name }));
+          setPer100({ calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat });
+        } else {
+          setForm(f => ({ ...f, name: p.name, calories: p.calories, protein: p.protein, carbs: p.carbs, fat: p.fat }));
+        }
+        setShowPresets(false);
+        setSearchQuery("");
+      };
+
+      const saveGoals = () => { setGoals(goalDraft); setEditGoals(false); showToast("Goals saved!"); };
+
+      const mealGroups = MEAL_TYPES.map(m => ({ meal: m, items: dayEntries.filter(e => e.meal === m) })).filter(g => g.items.length > 0);
+      const filtered = PRESET_FOODS.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const caloriesLeft = goals.calories - totals.calories;
+      const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
+      const isToday = selectedDate === todayKey();
+
+      const formatDate = (d) => {
+        const date = new Date(d + "T12:00:00");
+        if (d === todayKey()) return "Today";
+        return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      };
+
+      return (
+        <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
+
+          {/* Toast */}
+          {toast && (
+            <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", background: toast.type === "success" ? C.green : C.red, color: "#fff", padding: "10px 20px", borderRadius: 99, fontSize: 13, fontWeight: 700, zIndex: 999, whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", animation: "slideDown 0.2s ease" }}>
+              ✓ {toast.msg}
+            </div>
+          )}
+
+          {/* Header */}
+          <div style={{ background: C.blue, padding: "24px 20px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Macro Tracker</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{formatDate(selectedDate)}</div>
               </div>
-            ) : (
-              <>
-                {mealGroups.map(({ meal, items }) => (
-                  <div key={meal} style={{ marginBottom: 22 }}>
-                    <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 10, fontWeight: 700 }}>{meal}</div>
-                    {items.map((e) => (
-                      <div key={e.id} style={{ background: "#161616", border: "1px solid #222", borderRadius: 14, padding: "12px 14px", marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: "#fff", marginBottom: 3 }}>
-                            {e.name} {e.qty !== 1 && <span style={{ color: "#555", fontWeight: 400 }}>×{e.qty}</span>}
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 10, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} />
+            </div>
+
+            {/* Calorie summary card */}
+            <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: "16px 16px 0 0", padding: "18px 20px 0" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Calories</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                    <span style={{ fontSize: 42, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{Math.round(totals.calories)}</span>
+                    <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>/ {goals.calories}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{caloriesLeft >= 0 ? "Remaining" : "Over"}</div>
+                  <div style={{ fontSize: 28, fontWeight: 900, color: caloriesLeft < 0 ? "#ffcdd2" : "#fff", lineHeight: 1.1 }}>{Math.abs(Math.round(caloriesLeft))}</div>
+                </div>
+              </div>
+              {/* Calorie bar */}
+              <div style={{ height: 6, background: "rgba(255,255,255,0.2)", borderRadius: 99, overflow: "hidden", marginBottom: 18 }}>
+                <div style={{ height: "100%", width: `${calPct}%`, background: caloriesLeft < 0 ? "#ffcdd2" : "rgba(255,255,255,0.9)", borderRadius: 99, transition: "width 0.5s ease" }} />
+              </div>
+              {/* Macro circles */}
+              <div style={{ display: "flex", justifyContent: "space-around", paddingBottom: 16 }}>
+                <MacroCircle value={totals.protein} goal={goals.protein} color="#fff" label="Protein" />
+                <MacroCircle value={totals.carbs} goal={goals.carbs} color="#fff" label="Carbs" />
+                <MacroCircle value={totals.fat} goal={goals.fat} color="#fff" label="Fat" />
+              </div>
+            </div>
+          </div>
+
+          {/* Tab bar */}
+          <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 8px" }}>
+            {[["log", "📋", "Log"], ["add", "➕", "Add"], ["goals", "🎯", "Goals"]].map(([t, icon, label]) => (
+              <button key={t} onClick={() => setTab(t)} style={{
+                flex: 1, padding: "12px 4px", background: "none", border: "none",
+                borderBottom: tab === t ? `3px solid ${C.blue}` : "3px solid transparent",
+                color: tab === t ? C.blue : C.textLight,
+                fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit"
+              }}>
+                <span style={{ fontSize: 16 }}>{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex: 1, padding: "16px 16px 20px" }}>
+
+            {/* LOG TAB */}
+            {tab === "log" && (
+              <div style={{ animation: "fadeIn 0.2s ease" }}>
+                {dayEntries.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "60px 20px", color: C.textLight }}>
+                    <div style={{ fontSize: 52, marginBottom: 14 }}>🥗</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: C.textMid, marginBottom: 6 }}>Nothing logged yet</div>
+                    <div style={{ fontSize: 14, color: C.textLight, marginBottom: 24 }}>Tap the + Add tab to log your first meal</div>
+                    <button onClick={() => setTab("add")} style={{ background: C.blue, color: "#fff", border: "none", borderRadius: 12, padding: "12px 28px", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+                      + Add Food
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {mealGroups.map(({ meal, items }) => {
+                      const mealTotals = items.reduce((a, e) => ({ cal: a.cal + e.calories*e.qty, pro: a.pro + e.protein*e.qty, carb: a.carb + e.carbs*e.qty, fat: a.fat + e.fat*e.qty }), { cal:0, pro:0, carb:0, fat:0 });
+                      return (
+                        <div key={meal} style={{ marginBottom: 16 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 18 }}>{MEAL_ICONS[meal]}</span>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{meal}</span>
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: C.textLight }}>{Math.round(mealTotals.cal)} cal</span>
                           </div>
-                          <div style={{ display: "flex", gap: 10, fontSize: 12 }}>
-                            <span style={{ color: "#a8ff78" }}>{Math.round(e.calories * e.qty)} cal</span>
-                            <span style={{ color: "#60c8ff" }}>P {Math.round(e.protein * e.qty)}g</span>
-                            <span style={{ color: "#ffcc60" }}>C {Math.round(e.carbs * e.qty)}g</span>
-                            <span style={{ color: "#ff8c60" }}>F {Math.round(e.fat * e.qty)}g</span>
+                          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                            {items.map((e, i) => (
+                              <div key={e.id} style={{ padding: "13px 16px", borderBottom: i < items.length-1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {e.name}{e.qty !== 1 && <span style={{ color: C.textLight, fontWeight: 600 }}> ×{e.qty}</span>}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 10, fontSize: 12, flexWrap: "wrap" }}>
+                                    <span style={{ fontWeight: 700, color: C.blue }}>{Math.round(e.calories*e.qty)} cal</span>
+                                    <span style={{ color: C.textLight }}>P {Math.round(e.protein*e.qty)}g</span>
+                                    <span style={{ color: C.textLight }}>C {Math.round(e.carbs*e.qty)}g</span>
+                                    <span style={{ color: C.textLight }}>F {Math.round(e.fat*e.qty)}g</span>
+                                  </div>
+                                </div>
+                                <button onClick={() => removeEntry(e.id)} style={{ background: C.border, border: "none", color: C.textLight, width: 28, height: 28, borderRadius: 99, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "inherit" }}>×</button>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                        <button onClick={() => removeEntry(e.id)} style={{ background: "none", border: "none", color: "#333", fontSize: 18, cursor: "pointer", padding: "4px 8px", borderRadius: 8 }}
-                          onMouseOver={(ev) => (ev.target.style.color = "#ff6b6b")}
-                          onMouseOut={(ev) => (ev.target.style.color = "#333")}>×</button>
-                      </div>
-                    ))}
+                      );
+                    })}
+
+                    {/* Daily summary */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginTop: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Daily Breakdown</div>
+                      <MacroBar label="Protein" value={totals.protein} goal={goals.protein} color={C.blue} />
+                      <MacroBar label="Carbs" value={totals.carbs} goal={goals.carbs} color={C.orange} />
+                      <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color={C.purple} />
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ADD TAB */}
+            {tab === "add" && (
+              <div style={{ animation: "fadeIn 0.2s ease" }}>
+
+                {/* Search */}
+                <div style={{ position: "relative", marginBottom: 14 }}>
+                  <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, pointerEvents: "none" }}>🔍</div>
+                  <input
+                    placeholder="Search food library..."
+                    value={searchQuery}
+                    onChange={e => { setSearchQuery(e.target.value); setShowPresets(true); }}
+                    onFocus={() => setShowPresets(true)}
+                    style={{ ...inputStyle, paddingLeft: 42, background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 14, fontSize: 15 }}
+                  />
+                  {showPresets && searchQuery && filtered.length > 0 && (
+                    <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, zIndex: 20, background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", overflow: "hidden", animation: "slideDown 0.15s ease" }}>
+                      {filtered.slice(0, 7).map((p, i) => (
+                        <button key={p.name} onClick={() => selectPreset(p)}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", padding: "12px 16px", textAlign: "left", cursor: "pointer", borderBottom: i < Math.min(filtered.length,7)-1 ? `1px solid ${C.border}` : "none", fontFamily: "inherit" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: C.text }}>{p.name}</div>
+                            <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>{p.calories} cal · P {p.protein}g · C {p.carbs}g · F {p.fat}g</div>
+                          </div>
+                          <span style={{ color: C.blue, fontSize: 20, fontWeight: 300 }}>+</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Mode toggle */}
+                <div style={{ display: "flex", background: C.border, borderRadius: 12, padding: 3, marginBottom: 14 }}>
+                  {[["servings", "By Servings"], ["weight", "By Weight ⚖️"]].map(([mode, label]) => (
+                    <button key={mode} onClick={() => setWeightMode(mode === "weight")}
+                      style={{ flex: 1, padding: "9px", borderRadius: 10, fontSize: 13, fontWeight: 800, border: "none", cursor: "pointer", transition: "all 0.2s", fontFamily: "inherit",
+                        background: (mode === "weight") === weightMode ? C.card : "transparent",
+                        color: (mode === "weight") === weightMode ? C.blue : C.textLight,
+                        boxShadow: (mode === "weight") === weightMode ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 18, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+
+                  {/* Food name */}
+                  <div style={{ marginBottom: 14 }}>
+                    <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Food Name *</label>
+                    <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Flank Steak" style={inputStyle} />
                   </div>
-                ))}
-                <div style={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 16, padding: 16, marginTop: 8 }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 12, fontWeight: 700 }}>Daily Total</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+
+                  {weightMode ? (
+                    <>
+                      {/* Weight amount + unit */}
+                      <div style={{ marginBottom: 14 }}>
+                        <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Amount *</label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input type="number" min="0" placeholder="e.g. 250" value={weightAmount}
+                            onChange={e => setWeightAmount(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                          <div style={{ display: "flex", background: C.border, borderRadius: 12, overflow: "hidden", flexShrink: 0 }}>
+                            {["g", "oz"].map(u => (
+                              <button key={u} onClick={() => setWeightUnit(u)}
+                                style={{ padding: "11px 16px", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 800, transition: "all 0.15s", fontFamily: "inherit",
+                                  background: weightUnit === u ? C.blue : "transparent",
+                                  color: weightUnit === u ? "#fff" : C.textMid }}>{u}</button>
+                            ))}
+                          </div>
+                        </div>
+                        {weightAmount && (
+                          <div style={{ fontSize: 11, color: C.textLight, marginTop: 5, fontWeight: 600 }}>
+                            = {weightUnit === "oz" ? `${(parseFloat(weightAmount)*28.3495).toFixed(1)}g` : `${(parseFloat(weightAmount)/28.3495).toFixed(2)}oz`}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Per 100g */}
+                      <div style={{ background: C.blueLight, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+                        <div style={{ fontSize: 12, color: C.blue, fontWeight: 800, marginBottom: 10 }}>Nutrition per 100g (from label)</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                          {[{ key:"calories", label:"Calories *", color: C.blue }, { key:"protein", label:"Protein (g)", color: C.green }, { key:"carbs", label:"Carbs (g)", color: C.orange }, { key:"fat", label:"Fat (g)", color: C.purple }].map(f => (
+                            <div key={f.key}>
+                              <label style={{ fontSize: 11, color: f.color, display: "block", marginBottom: 5, fontWeight: 700 }}>{f.label}</label>
+                              <input type="number" min="0" placeholder="0" value={per100[f.key]}
+                                onChange={e => setPer100(p => ({ ...p, [f.key]: e.target.value }))} style={inputStyle} />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {weightAmount && per100.calories && (() => {
+                        const grams = weightUnit === "oz" ? parseFloat(weightAmount)*28.3495 : parseFloat(weightAmount);
+                        const ratio = grams/100;
+                        return (
+                          <div style={{ background: C.greenLight, border: `1px solid ${C.green}30`, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+                            <div style={{ fontSize: 11, color: C.green, fontWeight: 800, marginBottom: 6 }}>Calculated for {parseFloat(weightAmount)}{weightUnit}</div>
+                            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 14, fontWeight: 800, color: C.blue }}>{Math.round((parseFloat(per100.calories)||0)*ratio)} cal</span>
+                              <span style={{ fontSize: 13, color: C.textMid }}>P {Math.round((parseFloat(per100.protein)||0)*ratio)}g</span>
+                              <span style={{ fontSize: 13, color: C.textMid }}>C {Math.round((parseFloat(per100.carbs)||0)*ratio)}g</span>
+                              <span style={{ fontSize: 13, color: C.textMid }}>F {Math.round((parseFloat(per100.fat)||0)*ratio)}g</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                        {[{ key:"calories", label:"Calories *" }, { key:"qty", label:"Servings" }].map(f => (
+                          <div key={f.key}>
+                            <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>{f.label}</label>
+                            <input type="number" min="0" placeholder={f.key==="qty" ? "1" : "200"} value={form[f.key]} onChange={e => setForm(fv => ({ ...fv, [f.key]: e.target.value }))} style={inputStyle} />
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                        {[{ key:"protein", label:"Protein (g)", color: C.green }, { key:"carbs", label:"Carbs (g)", color: C.orange }, { key:"fat", label:"Fat (g)", color: C.purple }].map(f => (
+                          <div key={f.key}>
+                            <label style={{ fontSize: 12, color: f.color, display: "block", marginBottom: 6, fontWeight: 700 }}>{f.label}</label>
+                            <input type="number" min="0" placeholder="0" value={form[f.key]} onChange={e => setForm(fv => ({ ...fv, [f.key]: e.target.value }))} style={inputStyle} />
+                          </div>
+                        ))}
+                      </div>
+                      {form.calories && (
+                        <div style={{ background: C.blueLight, borderRadius: 10, padding: "10px 14px", marginBottom: 14, display: "flex", gap: 14, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: C.blue }}>{Math.round(parseFloat(form.calories||0)*parseFloat(form.qty||1))} cal</span>
+                          <span style={{ fontSize: 13, color: C.textMid }}>P {Math.round(parseFloat(form.protein||0)*parseFloat(form.qty||1))}g</span>
+                          <span style={{ fontSize: 13, color: C.textMid }}>C {Math.round(parseFloat(form.carbs||0)*parseFloat(form.qty||1))}g</span>
+                          <span style={{ fontSize: 13, color: C.textMid }}>F {Math.round(parseFloat(form.fat||0)*parseFloat(form.qty||1))}g</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {/* Meal selector */}
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 8, fontWeight: 700 }}>Add to Meal</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+                      {MEAL_TYPES.map(m => (
+                        <button key={m} onClick={() => setForm(f => ({ ...f, meal: m }))}
+                          style={{ padding: "8px 4px", borderRadius: 10, fontSize: 11, fontWeight: 800, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
+                            border: form.meal === m ? `2px solid ${C.blue}` : `2px solid ${C.border}`,
+                            background: form.meal === m ? C.blueLight : C.bg,
+                            color: form.meal === m ? C.blue : C.textLight }}>
+                          <div style={{ fontSize: 16, marginBottom: 2 }}>{MEAL_ICONS[m]}</div>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button onClick={addEntry}
+                    disabled={weightMode ? (!form.name||!weightAmount||!per100.calories) : (!form.name||!form.calories)}
+                    style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", fontFamily: "inherit",
+                      background: (weightMode ? (form.name&&weightAmount&&per100.calories) : (form.name&&form.calories)) ? C.blue : C.border,
+                      color: (weightMode ? (form.name&&weightAmount&&per100.calories) : (form.name&&form.calories)) ? "#fff" : C.textLight,
+                      fontWeight: 800, fontSize: 16, cursor: "pointer", transition: "all 0.2s" }}>
+                    + Add to {form.meal}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* GOALS TAB */}
+            {tab === "goals" && (
+              <div style={{ animation: "fadeIn 0.2s ease" }}>
+
+                {/* Sub-tab toggle */}
+                <div style={{ display: "flex", background: C.border, borderRadius: 12, padding: 3, marginBottom: 16 }}>
+                  {[["view", "📊 My Goals"], ["calc", "🧮 Calculator"]].map(([t, label]) => (
+                    <button key={t} onClick={() => setGoalsSubTab(t)}
+                      style={{ flex: 1, padding: "9px", borderRadius: 10, fontSize: 13, fontWeight: 800, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
+                        background: goalsSubTab === t ? C.card : "transparent",
+                        color: goalsSubTab === t ? C.blue : C.textLight,
+                        boxShadow: goalsSubTab === t ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {goalsSubTab === "view" && !editGoals && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Daily Goals</div>
                     {[
-                      { label: "Calories", val: totals.calories, color: "#a8ff78", unit: "" },
-                      { label: "Protein", val: totals.protein, color: "#60c8ff", unit: "g" },
-                      { label: "Carbs", val: totals.carbs, color: "#ffcc60", unit: "g" },
-                      { label: "Fat", val: totals.fat, color: "#ff8c60", unit: "g" },
-                    ].map((m) => (
-                      <div key={m.label} style={{ textAlign: "center", background: "#1a1a1a", borderRadius: 12, padding: "10px 4px" }}>
-                        <div style={{ fontSize: 18, fontWeight: 800, color: m.color }}>{Math.round(m.val)}{m.unit}</div>
-                        <div style={{ fontSize: 10, color: "#555", marginTop: 2, letterSpacing: 1 }}>{m.label}</div>
+                      { label: "Calories", key: "calories", color: C.blue, unit: "kcal", icon: "🔥" },
+                      { label: "Protein", key: "protein", color: C.green, unit: "g", icon: "💪" },
+                      { label: "Carbohydrates", key: "carbs", color: C.orange, unit: "g", icon: "🌾" },
+                      { label: "Fat", key: "fat", color: C.purple, unit: "g", icon: "🥑" },
+                    ].map(g => {
+                      const used = totals[g.key];
+                      const left = goals[g.key] - used;
+                      const pct = Math.min((used/goals[g.key])*100, 100);
+                      return (
+                        <div key={g.key} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "16px", marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ fontSize: 20 }}>{g.icon}</span>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>{g.label}</div>
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 600 }}>Goal: {goals[g.key]}{g.unit}</div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 20, fontWeight: 900, color: g.color }}>{Math.round(used)}<span style={{ fontSize: 12, fontWeight: 600, color: C.textLight }}>{g.unit}</span></div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: left >= 0 ? C.green : C.red }}>{left >= 0 ? `${Math.round(left)} left` : `${Math.round(Math.abs(left))} over`}</div>
+                            </div>
+                          </div>
+                          <div style={{ height: 6, background: C.border, borderRadius: 99, overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${pct}%`, background: left < 0 ? C.red : g.color, borderRadius: 99, transition: "width 0.5s ease" }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <button onClick={() => { setGoalDraft({...goals}); setEditGoals(true); }}
+                      style={{ width: "100%", marginTop: 4, padding: "14px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.card, color: C.blue, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+                      ✏️ Edit Goals Manually
+                    </button>
+                  </>
+                )}
+
+                {goalsSubTab === "view" && editGoals && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Edit Daily Goals</div>
+                    {[
+                      { label: "Daily Calories", key: "calories", color: C.blue, unit: "kcal", icon: "🔥" },
+                      { label: "Protein", key: "protein", color: C.green, unit: "g", icon: "💪" },
+                      { label: "Carbohydrates", key: "carbs", color: C.orange, unit: "g", icon: "🌾" },
+                      { label: "Fat", key: "fat", color: C.purple, unit: "g", icon: "🥑" },
+                    ].map(g => (
+                      <div key={g.key} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16, marginBottom: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                        <label style={{ fontSize: 13, color: C.text, display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontWeight: 700 }}>
+                          <span>{g.icon}</span> {g.label} ({g.unit})
+                        </label>
+                        <input type="number" min="0" value={goalDraft[g.key]}
+                          onChange={e => setGoalDraft(d => ({ ...d, [g.key]: parseFloat(e.target.value)||0 }))}
+                          style={{ ...inputStyle, borderColor: g.color + "66" }} />
                       </div>
                     ))}
+                    <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                      <button onClick={() => setEditGoals(false)} style={{ flex: 1, padding: "13px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.card, color: C.textMid, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                      <button onClick={saveGoals} style={{ flex: 2, padding: "13px", borderRadius: 12, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>Save Goals</button>
+                    </div>
+                  </>
+                )}
+
+                {goalsSubTab === "calc" && (
+                  <div>
+                    {/* Intro */}
+                    <div style={{ background: C.blueLight, borderRadius: 14, padding: 14, marginBottom: 16, border: `1px solid ${C.blue}22` }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.blue, marginBottom: 4 }}>🎯 Goal Calculator</div>
+                      <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.6 }}>Enter your stats and goal weight to get personalized calorie and macro targets — then apply them with one tap.</div>
+                    </div>
+
+                    {/* Sex */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 10 }}>Biological Sex</div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        {[["male","👨 Male"], ["female","👩 Female"]].map(([v, label]) => (
+                          <button key={v} onClick={() => setCalc(c => ({...c, sex: v}))}
+                            style={{ flex: 1, padding: "11px", borderRadius: 12, border: calc.sex === v ? `2px solid ${C.blue}` : `2px solid ${C.border}`, background: calc.sex === v ? C.blueLight : C.bg, color: calc.sex === v ? C.blue : C.textMid, fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Age + Height */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Basic Info</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                        <div>
+                          <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Age</label>
+                          <input type="number" min="10" max="100" placeholder="e.g. 30" value={calc.age}
+                            onChange={e => setCalc(c => ({...c, age: e.target.value}))} style={inputStyle} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Unit System</label>
+                          <div style={{ display: "flex", background: C.border, borderRadius: 10, overflow: "hidden" }}>
+                            {[["imperial","lbs/ft"], ["metric","kg/cm"]].map(([v, label]) => (
+                              <button key={v} onClick={() => setCalc(c => ({...c, unit: v}))}
+                                style={{ flex: 1, padding: "11px 6px", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, fontFamily: "inherit", transition: "all 0.15s",
+                                  background: calc.unit === v ? C.blue : "transparent",
+                                  color: calc.unit === v ? "#fff" : C.textMid }}>{label}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Height</label>
+                        {calc.unit === "imperial" ? (
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <div style={{ flex: 1 }}>
+                              <input type="number" min="3" max="8" placeholder="Feet" value={calc.heightFt}
+                                onChange={e => setCalc(c => ({...c, heightFt: e.target.value}))} style={inputStyle} />
+                              <div style={{ fontSize: 10, color: C.textLight, textAlign: "center", marginTop: 3, fontWeight: 600 }}>feet</div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <input type="number" min="0" max="11" placeholder="Inches" value={calc.heightIn}
+                                onChange={e => setCalc(c => ({...c, heightIn: e.target.value}))} style={inputStyle} />
+                              <div style={{ fontSize: 10, color: C.textLight, textAlign: "center", marginTop: 3, fontWeight: 600 }}>inches</div>
+                            </div>
+                          </div>
+                        ) : (
+                          <input type="number" min="100" max="250" placeholder="e.g. 178" value={calc.heightCm}
+                            onChange={e => setCalc(c => ({...c, heightCm: e.target.value}))} style={inputStyle} />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Current + Goal Weight */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Weight</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                        <div>
+                          <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Current Weight</label>
+                          <input type="number" min="50" placeholder={calc.unit==="imperial" ? "lbs" : "kg"} value={calc.currentWeight}
+                            onChange={e => setCalc(c => ({...c, currentWeight: e.target.value}))} style={inputStyle} />
+                          <div style={{ fontSize: 10, color: C.textLight, textAlign: "center", marginTop: 3, fontWeight: 600 }}>{calc.unit === "imperial" ? "lbs" : "kg"}</div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 12, color: C.textMid, display: "block", marginBottom: 6, fontWeight: 700 }}>Goal Weight</label>
+                          <input type="number" min="50" placeholder={calc.unit==="imperial" ? "lbs" : "kg"} value={calc.goalWeight}
+                            onChange={e => setCalc(c => ({...c, goalWeight: e.target.value}))} style={inputStyle} />
+                          <div style={{ fontSize: 10, color: C.textLight, textAlign: "center", marginTop: 3, fontWeight: 600 }}>{calc.unit === "imperial" ? "lbs" : "kg"}</div>
+                        </div>
+                      </div>
+                      {calc.currentWeight && calc.goalWeight && (() => {
+                        const diff = parseFloat(calc.goalWeight) - parseFloat(calc.currentWeight);
+                        const unit = calc.unit === "imperial" ? "lbs" : "kg";
+                        if (Math.abs(diff) < 0.5) return <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: C.green, textAlign: "center" }}>✓ Maintenance goal</div>;
+                        return <div style={{ marginTop: 10, fontSize: 12, fontWeight: 700, color: diff < 0 ? C.blue : C.orange, textAlign: "center" }}>
+                          {diff < 0 ? `📉 Lose ${Math.abs(diff).toFixed(1)} ${unit}` : `📈 Gain ${Math.abs(diff).toFixed(1)} ${unit}`}
+                        </div>;
+                      })()}
+                    </div>
+
+                    {/* Activity Level */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Activity Level</div>
+                      {[
+                        ["sedentary", "🪑 Sedentary", "Desk job, little or no exercise"],
+                        ["light",    "🚶 Lightly Active", "Light exercise 1–3 days/week"],
+                        ["moderate", "🏃 Moderately Active", "Moderate exercise 3–5 days/week"],
+                        ["active",   "💪 Very Active", "Hard exercise 6–7 days/week"],
+                        ["athlete",  "🏋️ Athlete", "Physical job or 2x training/day"],
+                      ].map(([v, label, desc]) => (
+                        <button key={v} onClick={() => setCalc(c => ({...c, activity: v}))}
+                          style={{ display: "flex", alignItems: "center", width: "100%", padding: "11px 12px", marginBottom: 8, borderRadius: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
+                            border: calc.activity === v ? `2px solid ${C.blue}` : `2px solid ${C.border}`,
+                            background: calc.activity === v ? C.blueLight : C.bg }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: calc.activity === v ? C.blue : C.text }}>{label}</div>
+                            <div style={{ fontSize: 11, color: C.textLight, marginTop: 1 }}>{desc}</div>
+                          </div>
+                          {calc.activity === v && <span style={{ color: C.blue, fontSize: 18 }}>✓</span>}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Body Fat (optional) */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>Body Fat % <span style={{ color: C.textLight, fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(optional)</span></div>
+                      <div style={{ fontSize: 11, color: C.textLight, marginBottom: 10 }}>If known, enables a more accurate calculation using lean mass.</div>
+                      <input type="number" min="3" max="60" placeholder="e.g. 20" value={calc.bodyFat}
+                        onChange={e => setCalc(c => ({...c, bodyFat: e.target.value}))} style={inputStyle} />
+                    </div>
+
+                    {/* Macro Split */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 16, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 12 }}>Macro Split</div>
+                      {[
+                        ["balanced",    "⚖️ Balanced",       "40% carbs · 30% protein · 30% fat", 40, 30, 30],
+                        ["highprotein", "💪 High Protein",   "30% carbs · 40% protein · 30% fat", 30, 40, 30],
+                        ["lowcarb",     "🥩 Low Carb",       "20% carbs · 40% protein · 40% fat", 20, 40, 40],
+                        ["keto",        "🥑 Keto",           "5% carbs · 25% protein · 70% fat",  5,  25, 70],
+                        ["custom",      "✏️ Custom",         "Set your own percentages",            0,  0,  0],
+                      ].map(([v, label, desc]) => (
+                        <button key={v} onClick={() => setCalc(c => ({...c, macroSplit: v}))}
+                          style={{ display: "flex", alignItems: "center", width: "100%", padding: "11px 12px", marginBottom: 8, borderRadius: 12, cursor: "pointer", fontFamily: "inherit", textAlign: "left", transition: "all 0.15s",
+                            border: calc.macroSplit === v ? `2px solid ${C.blue}` : `2px solid ${C.border}`,
+                            background: calc.macroSplit === v ? C.blueLight : C.bg }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: calc.macroSplit === v ? C.blue : C.text }}>{label}</div>
+                            <div style={{ fontSize: 11, color: C.textLight, marginTop: 1 }}>{desc}</div>
+                          </div>
+                          {calc.macroSplit === v && <span style={{ color: C.blue, fontSize: 18 }}>✓</span>}
+                        </button>
+                      ))}
+                      {calc.macroSplit === "custom" && (
+                        <div style={{ marginTop: 8, padding: 14, background: C.blueLight, borderRadius: 12 }}>
+                          <div style={{ fontSize: 11, color: C.blue, fontWeight: 800, marginBottom: 10 }}>Custom % (must add up to 100)</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                            {[{k:"customCarbs",label:"Carbs %",color:C.orange},{k:"customProtein",label:"Protein %",color:C.green},{k:"customFat",label:"Fat %",color:C.purple}].map(f => (
+                              <div key={f.k}>
+                                <label style={{ fontSize: 11, color: f.color, display: "block", marginBottom: 4, fontWeight: 700 }}>{f.label}</label>
+                                <input type="number" min="0" max="100" placeholder="%" value={calc[f.k]||""}
+                                  onChange={e => setCalc(c => ({...c, [f.k]: e.target.value}))} style={inputStyle} />
+                              </div>
+                            ))}
+                          </div>
+                          {(() => {
+                            const total = (parseFloat(calc.customCarbs)||0) + (parseFloat(calc.customProtein)||0) + (parseFloat(calc.customFat)||0);
+                            return <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: Math.abs(total-100) < 1 ? C.green : C.red, textAlign: "center" }}>Total: {total}% {Math.abs(total-100) < 1 ? "✓" : "(must = 100)"}</div>;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Calculate button & results */}
+                    {(() => {
+                      const canCalc = calc.age && calc.currentWeight && calc.goalWeight && calc.activity &&
+                        (calc.unit === "metric" ? calc.heightCm : (calc.heightFt && calc.heightIn !== undefined));
+
+                      if (!canCalc) return (
+                        <div style={{ textAlign: "center", padding: "12px", color: C.textLight, fontSize: 13, fontWeight: 600 }}>
+                          Fill in your stats above to see your results
+                        </div>
+                      );
+
+                      // Convert to metric
+                      const weightKg = calc.unit === "imperial" ? parseFloat(calc.currentWeight) * 0.453592 : parseFloat(calc.currentWeight);
+                      const goalKg   = calc.unit === "imperial" ? parseFloat(calc.goalWeight)   * 0.453592 : parseFloat(calc.goalWeight);
+                      const heightCm = calc.unit === "imperial"
+                        ? (parseFloat(calc.heightFt)||0)*30.48 + (parseFloat(calc.heightIn)||0)*2.54
+                        : parseFloat(calc.heightCm);
+                      const age = parseFloat(calc.age);
+
+                      // BMR — Mifflin-St Jeor or Katch-McArdle if body fat known
+                      let bmr;
+                      if (calc.bodyFat && parseFloat(calc.bodyFat) > 0) {
+                        const lbm = weightKg * (1 - parseFloat(calc.bodyFat)/100);
+                        bmr = 370 + 21.6 * lbm; // Katch-McArdle
+                      } else {
+                        bmr = calc.sex === "male"
+                          ? 10 * weightKg + 6.25 * heightCm - 5 * age + 5
+                          : 10 * weightKg + 6.25 * heightCm - 5 * age - 161;
+                      }
+
+                      const actMult = { sedentary:1.2, light:1.375, moderate:1.55, active:1.725, athlete:1.9 }[calc.activity];
+                      const tdee = Math.round(bmr * actMult);
+
+                      // Adjust for goal weight
+                      const diff = goalKg - weightKg;
+                      let targetCals;
+                      if (Math.abs(diff) < 0.5) {
+                        targetCals = tdee; // maintenance
+                      } else if (diff < 0) {
+                        // Lose: deficit scaled by how much to lose, capped at 1000 kcal/day
+                        const deficit = Math.min(Math.abs(diff) * 110, 1000);
+                        targetCals = Math.max(tdee - deficit, calc.sex === "male" ? 1500 : 1200);
+                      } else {
+                        // Gain: surplus, capped at 500
+                        const surplus = Math.min(diff * 110, 500);
+                        targetCals = tdee + surplus;
+                      }
+                      targetCals = Math.round(targetCals);
+
+                      // Macro split
+                      let carbPct, protPct, fatPct;
+                      if (calc.macroSplit === "balanced")    { carbPct=40; protPct=30; fatPct=30; }
+                      else if (calc.macroSplit === "highprotein") { carbPct=30; protPct=40; fatPct=30; }
+                      else if (calc.macroSplit === "lowcarb")    { carbPct=20; protPct=40; fatPct=40; }
+                      else if (calc.macroSplit === "keto")       { carbPct=5;  protPct=25; fatPct=70; }
+                      else { carbPct=parseFloat(calc.customCarbs)||33; protPct=parseFloat(calc.customProtein)||34; fatPct=parseFloat(calc.customFat)||33; }
+
+                      const protG = Math.round((targetCals * protPct/100) / 4);
+                      const carbG = Math.round((targetCals * carbPct/100) / 4);
+                      const fatG  = Math.round((targetCals * fatPct/100)  / 9);
+
+                      const goalType = Math.abs(diff) < 0.5 ? "Maintenance" : diff < 0 ? "Fat Loss" : "Muscle Gain";
+                      const goalColor = Math.abs(diff) < 0.5 ? C.green : diff < 0 ? C.blue : C.orange;
+
+                      return (
+                        <div>
+                          {/* Result card */}
+                          <div style={{ background: C.card, borderRadius: 16, border: `2px solid ${goalColor}33`, padding: 18, marginBottom: 12, boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                              <div>
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Your Plan</div>
+                                <div style={{ fontSize: 16, fontWeight: 900, color: goalColor }}>{goalType}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700 }}>TDEE</div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: C.textMid }}>{tdee} cal/day</div>
+                              </div>
+                            </div>
+
+                            {/* Big calorie number */}
+                            <div style={{ textAlign: "center", marginBottom: 18, padding: "14px", background: `${goalColor}11`, borderRadius: 14 }}>
+                              <div style={{ fontSize: 11, color: C.textMid, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Daily Calorie Target</div>
+                              <div style={{ fontSize: 52, fontWeight: 900, color: goalColor, lineHeight: 1.1 }}>{targetCals}</div>
+                              <div style={{ fontSize: 12, color: C.textLight, fontWeight: 600 }}>calories per day</div>
+                            </div>
+
+                            {/* Macro breakdown */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+                              {[
+                                { label: "Protein", g: protG, pct: protPct, color: C.green, cal: protG*4 },
+                                { label: "Carbs",   g: carbG, pct: carbPct, color: C.orange, cal: carbG*4 },
+                                { label: "Fat",     g: fatG,  pct: fatPct,  color: C.purple, cal: fatG*9 },
+                              ].map(m => (
+                                <div key={m.label} style={{ textAlign: "center", background: C.bg, borderRadius: 12, padding: "12px 8px" }}>
+                                  <div style={{ fontSize: 22, fontWeight: 900, color: m.color }}>{m.g}g</div>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: C.textMid }}>{m.label}</div>
+                                  <div style={{ fontSize: 10, color: C.textLight }}>{m.pct}% · {m.cal} cal</div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Weekly projection */}
+                            {Math.abs(diff) >= 0.5 && (() => {
+                              const dailyDiff = diff < 0 ? tdee - targetCals : targetCals - tdee;
+                              const weeklyChange = calc.unit === "imperial"
+                                ? ((dailyDiff * 7) / 3500).toFixed(1) + " lbs/week"
+                                : ((dailyDiff * 7) / 7700).toFixed(2) + " kg/week";
+                              return (
+                                <div style={{ background: `${goalColor}11`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between" }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: C.textMid }}>Estimated rate</span>
+                                  <span style={{ fontSize: 12, fontWeight: 800, color: goalColor }}>{diff < 0 ? "−" : "+"}{weeklyChange}</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Apply button */}
+                          <button onClick={() => {
+                            setGoals({ calories: targetCals, protein: protG, carbs: carbG, fat: fatG });
+                            showToast("Goals updated from calculator!");
+                            setGoalsSubTab("view");
+                          }}
+                            style={{ width: "100%", padding: "15px", borderRadius: 14, border: "none", background: goalColor, color: "#fff", fontWeight: 900, fontSize: 17, cursor: "pointer", fontFamily: "inherit", boxShadow: `0 4px 16px ${goalColor}44` }}>
+                            ✓ Apply These Goals
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <div style={{ marginTop: 12, fontSize: 13, color: caloriesLeft >= 0 ? "#7cfc7c" : "#ff6b6b", fontWeight: 600, textAlign: "center" }}>
-                    {caloriesLeft >= 0 ? `${Math.round(caloriesLeft)} calories remaining` : `${Math.round(Math.abs(caloriesLeft))} calories over goal`}
-                  </div>
-                </div>
-              </>
+                )}
+              </div>
             )}
           </div>
-        )}
+        </div>
+      );
+    }
 
-        {/* ADD TAB */}
-        {tab === "add" && (
-          <div>
-            <div style={{ marginBottom: 16, position: "relative" }}>
-              <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 8, fontWeight: 700 }}>Quick Add from Library</div>
-              <input placeholder="Search foods..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setShowPresets(true); }} onFocus={() => setShowPresets(true)} style={{ width: "100%", background: "#161616", border: "1px solid #2a2a2a", borderRadius: 12, padding: "11px 14px", color: "#e0e0e0", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-              {showPresets && searchQuery && filtered.length > 0 && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "#1a1a1a", border: "1px solid #2a2a2a", borderRadius: 12, boxShadow: "0 8px 32px #000a", overflow: "hidden", marginTop: 4 }}>
-                  {filtered.slice(0, 6).map((p) => (
-                    <button key={p.name} onClick={() => selectPreset(p)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: "11px 14px", textAlign: "left", cursor: "pointer", color: "#e0e0e0", borderBottom: "1px solid #222" }}
-                      onMouseOver={(e) => (e.currentTarget.style.background = "#222")}
-                      onMouseOut={(e) => (e.currentTarget.style.background = "none")}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>{p.calories} cal · P {p.protein}g · C {p.carbs}g · F {p.fat}g</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ background: "#161616", border: "1px solid #222", borderRadius: 16, padding: 18 }}>
-              <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 14, fontWeight: 700 }}>Manual Entry</div>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: "#555", display: "block", marginBottom: 5, letterSpacing: 1, textTransform: "uppercase" }}>Food Name *</label>
-                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Grilled Chicken" style={inputStyle} />
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                {[{ key: "calories", label: "Calories *", placeholder: "e.g. 200" }, { key: "qty", label: "Servings", placeholder: "1" }].map((f) => (
-                  <div key={f.key}>
-                    <label style={{ fontSize: 11, color: "#555", display: "block", marginBottom: 5, letterSpacing: 1, textTransform: "uppercase" }}>{f.label}</label>
-                    <input type="number" min="0" placeholder={f.placeholder} value={form[f.key]} onChange={(e) => setForm((fv) => ({ ...fv, [f.key]: e.target.value }))} style={inputStyle} />
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-                {[{ key: "protein", label: "Protein (g)", color: "#60c8ff" }, { key: "carbs", label: "Carbs (g)", color: "#ffcc60" }, { key: "fat", label: "Fat (g)", color: "#ff8c60" }].map((f) => (
-                  <div key={f.key}>
-                    <label style={{ fontSize: 11, color: f.color, display: "block", marginBottom: 5, letterSpacing: 1, textTransform: "uppercase" }}>{f.label}</label>
-                    <input type="number" min="0" placeholder="0" value={form[f.key]} onChange={(e) => setForm((fv) => ({ ...fv, [f.key]: e.target.value }))} style={inputStyle} />
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 11, color: "#555", display: "block", marginBottom: 5, letterSpacing: 1, textTransform: "uppercase" }}>Meal</label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 6 }}>
-                  {MEAL_TYPES.map((m) => (
-                    <button key={m} onClick={() => setForm((f) => ({ ...f, meal: m }))} style={{ padding: "8px 4px", borderRadius: 10, fontSize: 11, fontWeight: 700, border: form.meal === m ? "2px solid #a8ff78" : "2px solid #2a2a2a", background: form.meal === m ? "#1a2e1a" : "#1a1a1a", color: form.meal === m ? "#a8ff78" : "#555", cursor: "pointer" }}>
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {form.calories && (
-                <div style={{ background: "#1a1a1a", borderRadius: 10, padding: 10, marginBottom: 14, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 12, color: "#a8ff78" }}>{Math.round(parseFloat(form.calories || 0) * parseFloat(form.qty || 1))} cal</span>
-                  <span style={{ fontSize: 12, color: "#60c8ff" }}>P {Math.round(parseFloat(form.protein || 0) * parseFloat(form.qty || 1))}g</span>
-                  <span style={{ fontSize: 12, color: "#ffcc60" }}>C {Math.round(parseFloat(form.carbs || 0) * parseFloat(form.qty || 1))}g</span>
-                  <span style={{ fontSize: 12, color: "#ff8c60" }}>F {Math.round(parseFloat(form.fat || 0) * parseFloat(form.qty || 1))}g</span>
-                </div>
-              )}
-
-              <button onClick={addEntry} disabled={!form.name || !form.calories} style={{ width: "100%", padding: "13px", borderRadius: 12, border: "none", background: form.name && form.calories ? "#a8ff78" : "#1e1e1e", color: form.name && form.calories ? "#111" : "#333", fontWeight: 800, fontSize: 15, cursor: form.name && form.calories ? "pointer" : "default" }}>
-                Add to {form.meal}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* GOALS TAB */}
-        {tab === "goals" && (
-          <div>
-            {!editGoals ? (
-              <>
-                <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 14, fontWeight: 700 }}>Your Daily Goals</div>
-                {[
-                  { label: "Calories", key: "calories", color: "#a8ff78", unit: "kcal" },
-                  { label: "Protein", key: "protein", color: "#60c8ff", unit: "g" },
-                  { label: "Carbs", key: "carbs", color: "#ffcc60", unit: "g" },
-                  { label: "Fat", key: "fat", color: "#ff8c60", unit: "g" },
-                ].map((g) => (
-                  <div key={g.key} style={{ background: "#161616", border: "1px solid #222", borderRadius: 14, padding: "14px 18px", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: "#555", letterSpacing: 1, textTransform: "uppercase" }}>{g.label}</div>
-                      <div style={{ fontSize: 26, fontWeight: 800, color: g.color }}>{goals[g.key]}<span style={{ fontSize: 14, fontWeight: 400, color: "#444" }}> {g.unit}</span></div>
-                    </div>
-                    <div style={{ fontSize: 13, textAlign: "right" }}>
-                      <div style={{ color: totals[g.key] > goals[g.key] ? "#ff6b6b" : "#555" }}>{Math.round(totals[g.key])} used</div>
-                      <div style={{ color: goals[g.key] - totals[g.key] >= 0 ? "#7cfc7c" : "#ff6b6b", fontWeight: 600 }}>{Math.round(goals[g.key] - totals[g.key])} left</div>
-                    </div>
-                  </div>
-                ))}
-                <button onClick={() => { setGoalDraft({ ...goals }); setEditGoals(true); }} style={{ width: "100%", marginTop: 8, padding: "13px", borderRadius: 12, border: "1px solid #2a2a2a", background: "#161616", color: "#e0e0e0", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-                  Edit Goals
-                </button>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: "#555", marginBottom: 14, fontWeight: 700 }}>Set Daily Goals</div>
-                {[
-                  { label: "Daily Calories", key: "calories", color: "#a8ff78", unit: "kcal" },
-                  { label: "Protein", key: "protein", color: "#60c8ff", unit: "g" },
-                  { label: "Carbohydrates", key: "carbs", color: "#ffcc60", unit: "g" },
-                  { label: "Fat", key: "fat", color: "#ff8c60", unit: "g" },
-                ].map((g) => (
-                  <div key={g.key} style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 11, color: g.color, display: "block", marginBottom: 5, letterSpacing: 1, textTransform: "uppercase" }}>{g.label} ({g.unit})</label>
-                    <input type="number" min="0" value={goalDraft[g.key]} onChange={(e) => setGoalDraft((d) => ({ ...d, [g.key]: parseFloat(e.target.value) || 0 }))} style={{ ...inputStyle, borderColor: g.color + "44" }} />
-                  </div>
-                ))}
-                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-                  <button onClick={() => setEditGoals(false)} style={{ flex: 1, padding: "12px", borderRadius: 12, border: "1px solid #2a2a2a", background: "#161616", color: "#777", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-                  <button onClick={saveGoals} style={{ flex: 2, padding: "12px", borderRadius: 12, border: "none", background: "#a8ff78", color: "#111", fontWeight: 800, cursor: "pointer" }}>Save Goals</button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App />);
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js");
+      });
+    }
+  </script>
+</body>
+</html>
