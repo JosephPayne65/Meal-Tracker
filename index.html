@@ -411,6 +411,17 @@
       const [selectedDate, setSelectedDate] = useState(todayKey());
       const [toast, setToast] = useState(null);
       const [goalsSubTab, setGoalsSubTab] = useState("view");
+      const [workoutTab, setWorkoutTab] = useState("log");
+      const [workouts, setWorkouts] = useState({});
+      const [routines, setRoutines] = useState([]);
+      const [activeWorkout, setActiveWorkout] = useState(null);
+      const [workoutDate, setWorkoutDate] = useState(todayKey());
+      const [showExercisePicker, setShowExercisePicker] = useState(false);
+      const [exerciseSearch, setExerciseSearch] = useState("");
+      const [showRoutineBuilder, setShowRoutineBuilder] = useState(false);
+      const [routineDraft, setRoutineDraft] = useState({ name: "", exercises: [] });
+      const [showCardioForm, setShowCardioForm] = useState(false);
+      const [cardioForm, setCardioForm] = useState({ type: "Running", duration: "", distance: "", calories: "", notes: "" });
       const [calc, setCalc] = useState({
         sex: "male", age: "", unit: "imperial",
         heightFt: "", heightIn: "", heightCm: "",
@@ -426,13 +437,15 @@
             const d = JSON.parse(stored);
             if (d.goals) setGoals(d.goals);
             if (d.entries) setEntries(d.entries);
+            if (d.workouts) setWorkouts(d.workouts);
+            if (d.routines) setRoutines(d.routines);
           }
         } catch {}
       }, []);
 
       useEffect(() => {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries })); } catch {}
-      }, [goals, entries]);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries, workouts, routines })); } catch {}
+      }, [goals, entries, workouts, routines]);
 
       const showToast = (msg, type="success") => {
         setToast({ msg, type });
@@ -553,12 +566,12 @@
 
           {/* Tab bar */}
           <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 8px" }}>
-            {[["log", "📋", "Log"], ["add", "➕", "Add"], ["goals", "🎯", "Goals"]].map(([t, icon, label]) => (
+            {[["log", "📋", "Log"], ["add", "➕", "Add"], ["workout", "💪", "Workout"], ["goals", "🎯", "Goals"]].map(([t, icon, label]) => (
               <button key={t} onClick={() => setTab(t)} style={{
                 flex: 1, padding: "12px 4px", background: "none", border: "none",
                 borderBottom: tab === t ? `3px solid ${C.blue}` : "3px solid transparent",
                 color: tab === t ? C.blue : C.textLight,
-                fontWeight: 800, fontSize: 12, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit"
+                fontWeight: 800, fontSize: 11, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit"
               }}>
                 <span style={{ fontSize: 16 }}>{icon}</span>
                 {label}
@@ -791,7 +804,500 @@
               </div>
             )}
 
-            {/* GOALS TAB */}
+            {/* WORKOUT TAB */}
+            {tab === "workout" && (() => {
+              const EXERCISES = {
+                "Chest": ["Bench Press","Incline Bench Press","Decline Bench Press","Dumbbell Fly","Cable Fly","Push Up","Chest Dip","Landmine Press"],
+                "Back": ["Deadlift","Pull Up","Lat Pulldown","Bent Over Row","Seated Row","T-Bar Row","Single Arm Row","Face Pull","Shrug"],
+                "Shoulders": ["Overhead Press","Dumbbell Shoulder Press","Lateral Raise","Front Raise","Rear Delt Fly","Arnold Press","Upright Row"],
+                "Biceps": ["Barbell Curl","Dumbbell Curl","Hammer Curl","Preacher Curl","Cable Curl","Concentration Curl","Spider Curl"],
+                "Triceps": ["Tricep Pushdown","Skull Crusher","Overhead Tricep Extension","Dip","Close Grip Bench","Diamond Push Up","Kickback"],
+                "Legs": ["Squat","Romanian Deadlift","Leg Press","Leg Curl","Leg Extension","Lunge","Bulgarian Split Squat","Hip Thrust","Calf Raise","Hack Squat","Goblet Squat"],
+                "Core": ["Plank","Crunch","Hanging Leg Raise","Cable Crunch","Ab Rollout","Russian Twist","Bicycle Crunch","Dead Bug","Side Plank"],
+                "Full Body": ["Clean","Snatch","Thruster","Farmer Carry","Battle Ropes","Kettlebell Swing","Turkish Get Up","Box Jump","Burpee"],
+              };
+              const CARDIO_TYPES = ["Running","Walking","Cycling","Elliptical","Rowing","Swimming","Jump Rope","Stair Climber","HIIT","Other"];
+              const allExercises = Object.values(EXERCISES).flat();
+
+              // PR tracking — find best set per exercise across all workouts
+              const allWorkoutDays = Object.values(workouts).flat();
+              const prs = {};
+              allWorkoutDays.forEach(w => {
+                if (w.type === "lifting") {
+                  w.exercises.forEach(ex => {
+                    ex.sets.forEach(s => {
+                      if (s.weight && s.reps) {
+                        const vol = parseFloat(s.weight) * parseFloat(s.reps);
+                        if (!prs[ex.name] || vol > prs[ex.name].vol) {
+                          prs[ex.name] = { weight: s.weight, reps: s.reps, vol, date: w.date };
+                        }
+                      }
+                    });
+                  });
+                }
+              });
+
+              const dayWorkouts = workouts[workoutDate] || [];
+              const weekDays = Array.from({length:7},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-i); return d.toISOString().split("T")[0]; }).reverse();
+
+              const saveWorkout = (w) => {
+                setWorkouts(prev => {
+                  const day = prev[workoutDate] || [];
+                  const idx = day.findIndex(x => x.id === w.id);
+                  const updated = idx >= 0 ? day.map((x,i) => i===idx ? w : x) : [...day, w];
+                  return { ...prev, [workoutDate]: updated };
+                });
+              };
+
+              const deleteWorkout = (id) => {
+                setWorkouts(prev => ({ ...prev, [workoutDate]: (prev[workoutDate]||[]).filter(w=>w.id!==id) }));
+                if (activeWorkout?.id === id) setActiveWorkout(null);
+              };
+
+              const startLifting = (routine=null) => {
+                const w = {
+                  id: Date.now(), type: "lifting", date: workoutDate,
+                  name: routine ? routine.name : "Workout",
+                  exercises: routine ? routine.exercises.map(e=>({name:e,sets:[{weight:"",reps:"",done:false}]})) : [],
+                  startTime: Date.now(), endTime: null, notes: ""
+                };
+                setActiveWorkout(w);
+                setWorkoutTab("active");
+              };
+
+              const addExerciseToActive = (name) => {
+                const updated = { ...activeWorkout, exercises: [...activeWorkout.exercises, { name, sets: [{weight:"",reps:"",done:false}] }] };
+                setActiveWorkout(updated);
+                setShowExercisePicker(false);
+                setExerciseSearch("");
+              };
+
+              const updateSet = (exIdx, setIdx, field, val) => {
+                const exs = activeWorkout.exercises.map((ex, ei) => ei !== exIdx ? ex : {
+                  ...ex, sets: ex.sets.map((s, si) => si !== setIdx ? s : { ...s, [field]: val })
+                });
+                setActiveWorkout({ ...activeWorkout, exercises: exs });
+              };
+
+              const addSet = (exIdx) => {
+                const prev = activeWorkout.exercises[exIdx].sets;
+                const last = prev[prev.length-1];
+                const exs = activeWorkout.exercises.map((ex, ei) => ei !== exIdx ? ex : {
+                  ...ex, sets: [...ex.sets, { weight: last.weight, reps: last.reps, done: false }]
+                });
+                setActiveWorkout({ ...activeWorkout, exercises: exs });
+              };
+
+              const removeSet = (exIdx, setIdx) => {
+                const exs = activeWorkout.exercises.map((ex, ei) => ei !== exIdx ? ex : {
+                  ...ex, sets: ex.sets.filter((_,si) => si !== setIdx)
+                });
+                setActiveWorkout({ ...activeWorkout, exercises: exs });
+              };
+
+              const removeExercise = (exIdx) => {
+                setActiveWorkout({ ...activeWorkout, exercises: activeWorkout.exercises.filter((_,i)=>i!==exIdx) });
+              };
+
+              const finishWorkout = () => {
+                const finished = { ...activeWorkout, endTime: Date.now() };
+                saveWorkout(finished);
+                setActiveWorkout(null);
+                setWorkoutTab("log");
+                showToast("Workout saved! 💪");
+              };
+
+              const logCardio = () => {
+                if (!cardioForm.duration) return;
+                const w = { id: Date.now(), type: "cardio", date: workoutDate, ...cardioForm };
+                setWorkouts(prev => ({ ...prev, [workoutDate]: [...(prev[workoutDate]||[]), w] }));
+                setCardioForm({ type: "Running", duration: "", distance: "", calories: "", notes: "" });
+                setShowCardioForm(false);
+                showToast("Cardio logged! 🏃");
+              };
+
+              const saveRoutine = () => {
+                if (!routineDraft.name || routineDraft.exercises.length === 0) return;
+                setRoutines(prev => [...prev, { ...routineDraft, id: Date.now() }]);
+                setRoutineDraft({ name: "", exercises: [] });
+                setShowRoutineBuilder(false);
+                showToast("Routine saved!");
+              };
+
+              const deleteRoutine = (id) => setRoutines(prev => prev.filter(r => r.id !== id));
+
+              const inputS = { ...inputStyle, padding: "9px 12px", fontSize: 14 };
+
+              // ACTIVE WORKOUT VIEW
+              if (workoutTab === "active" && activeWorkout) {
+                const elapsed = Math.round((Date.now() - activeWorkout.startTime) / 60000);
+                const filteredEx = allExercises.filter(e => e.toLowerCase().includes(exerciseSearch.toLowerCase()));
+                const groupedEx = Object.entries(EXERCISES).map(([group, exs]) => ({
+                  group, exs: exs.filter(e => e.toLowerCase().includes(exerciseSearch.toLowerCase()))
+                })).filter(g => g.exs.length > 0);
+
+                return (
+                  <div style={{ animation: "fadeIn 0.2s ease" }}>
+                    {/* Active workout header */}
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <input value={activeWorkout.name} onChange={e => setActiveWorkout({...activeWorkout, name: e.target.value})}
+                          style={{ ...inputS, flex: 1, fontWeight: 800, fontSize: 16, border: "none", background: "transparent", padding: "0", marginRight: 10 }} />
+                        <div style={{ fontSize: 12, color: C.textLight, fontWeight: 700, whiteSpace: "nowrap" }}>⏱ {elapsed}m</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={finishWorkout} style={{ flex: 2, padding: "11px", borderRadius: 12, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>✓ Finish Workout</button>
+                        <button onClick={() => { setWorkoutTab("log"); }} style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Save Draft</button>
+                      </div>
+                    </div>
+
+                    {/* Exercises */}
+                    {activeWorkout.exercises.map((ex, exIdx) => {
+                      const pr = prs[ex.name];
+                      return (
+                        <div key={exIdx} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                            <div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{ex.name}</div>
+                              {pr && <div style={{ fontSize: 11, color: C.orange, fontWeight: 700 }}>PR: {pr.weight}lb × {pr.reps}</div>}
+                            </div>
+                            <button onClick={() => removeExercise(exIdx)} style={{ background: C.border, border: "none", color: C.textLight, width: 26, height: 26, borderRadius: 99, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                          </div>
+                          {/* Set headers */}
+                          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 1fr 36px", gap: 6, marginBottom: 6 }}>
+                            {["Set","lbs","Reps",""].map((h,i) => <div key={i} style={{ fontSize: 10, fontWeight: 800, color: C.textLight, textAlign: "center", textTransform: "uppercase" }}>{h}</div>)}
+                          </div>
+                          {ex.sets.map((s, sIdx) => (
+                            <div key={sIdx} style={{ display: "grid", gridTemplateColumns: "28px 1fr 1fr 36px", gap: 6, marginBottom: 6, alignItems: "center" }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: s.done ? C.green : C.textLight, textAlign: "center", background: s.done ? C.greenLight : C.bg, borderRadius: 8, padding: "8px 2px" }}>{sIdx+1}</div>
+                              <input type="number" placeholder="135" value={s.weight} onChange={e => updateSet(exIdx,sIdx,"weight",e.target.value)}
+                                style={{ ...inputS, textAlign: "center" }} />
+                              <input type="number" placeholder="10" value={s.reps} onChange={e => updateSet(exIdx,sIdx,"reps",e.target.value)}
+                                style={{ ...inputS, textAlign: "center" }} />
+                              <button onClick={() => s.weight && s.reps ? updateSet(exIdx,sIdx,"done",!s.done) : removeSet(exIdx,sIdx)}
+                                style={{ height: 36, borderRadius: 10, border: "none", background: s.done ? C.green : (s.weight&&s.reps ? C.blue : C.border), color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                                {s.done ? "✓" : (s.weight&&s.reps ? "✓" : "×")}
+                              </button>
+                            </div>
+                          ))}
+                          <button onClick={() => addSet(exIdx)} style={{ width: "100%", padding: "8px", borderRadius: 10, border: `1.5px dashed ${C.border}`, background: "transparent", color: C.blue, fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 4, fontFamily: "inherit" }}>
+                            + Add Set
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Add exercise */}
+                    {!showExercisePicker ? (
+                      <button onClick={() => setShowExercisePicker(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px dashed ${C.blue}`, background: C.blueLight, color: C.blue, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", marginBottom: 12 }}>
+                        + Add Exercise
+                      </button>
+                    ) : (
+                      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12 }}>
+                        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                          <input placeholder="Search exercises..." value={exerciseSearch} onChange={e => setExerciseSearch(e.target.value)}
+                            style={{ ...inputS, flex: 1 }} autoFocus />
+                          <button onClick={() => { setShowExercisePicker(false); setExerciseSearch(""); }} style={{ padding: "9px 14px", borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>✕</button>
+                        </div>
+                        <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                          {groupedEx.map(({group, exs}) => (
+                            <div key={group} style={{ marginBottom: 10 }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>{group}</div>
+                              {exs.map(e => (
+                                <button key={e} onClick={() => addExerciseToActive(e)}
+                                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", marginBottom: 4, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                                  {e}
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Notes */}
+                    <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 14, marginBottom: 16 }}>
+                      <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 6 }}>Workout Notes</label>
+                      <textarea value={activeWorkout.notes} onChange={e => setActiveWorkout({...activeWorkout, notes: e.target.value})}
+                        placeholder="How did it feel? Any notes..."
+                        style={{ ...inputS, width: "100%", minHeight: 70, resize: "vertical", fontFamily: "inherit" }} />
+                    </div>
+                  </div>
+                );
+              }
+
+              // MAIN WORKOUT VIEWS
+              return (
+                <div style={{ animation: "fadeIn 0.2s ease" }}>
+                  {/* Workout sub-tabs */}
+                  <div style={{ display: "flex", background: C.border, borderRadius: 12, padding: 3, marginBottom: 16 }}>
+                    {[["log","📅 Today"],["history","📊 History"],["routines","📋 Routines"],["prs","🏆 PRs"]].map(([t,label]) => (
+                      <button key={t} onClick={() => setWorkoutTab(t)}
+                        style={{ flex: 1, padding: "8px 4px", borderRadius: 10, fontSize: 11, fontWeight: 800, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
+                          background: workoutTab === t ? C.card : "transparent",
+                          color: workoutTab === t ? C.blue : C.textLight,
+                          boxShadow: workoutTab === t ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* TODAY LOG */}
+                  {workoutTab === "log" && (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{formatDate(workoutDate)}</div>
+                        <input type="date" value={workoutDate} onChange={e => setWorkoutDate(e.target.value)}
+                          style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "6px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600, color: C.text }} />
+                      </div>
+
+                      {/* Start buttons */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                        <button onClick={() => startLifting()} style={{ padding: "16px 10px", borderRadius: 14, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 24 }}>🏋️</span>Start Lifting
+                        </button>
+                        <button onClick={() => setShowCardioForm(true)} style={{ padding: "16px 10px", borderRadius: 14, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 24 }}>🏃</span>Log Cardio
+                        </button>
+                      </div>
+
+                      {/* Routine quick-start */}
+                      {routines.length > 0 && (
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Quick Start Routine</div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            {routines.map(r => (
+                              <button key={r.id} onClick={() => startLifting(r)}
+                                style={{ padding: "9px 14px", borderRadius: 10, border: `1.5px solid ${C.blue}`, background: C.blueLight, color: C.blue, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                                {r.name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Cardio form */}
+                      {showCardioForm && (
+                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>🏃 Log Cardio</div>
+                          <div style={{ marginBottom: 10 }}>
+                            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 6 }}>Type</label>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                              {CARDIO_TYPES.map(t => (
+                                <button key={t} onClick={() => setCardioForm(f => ({...f, type: t}))}
+                                  style={{ padding: "7px 12px", borderRadius: 99, border: cardioForm.type===t ? `2px solid ${C.green}` : `2px solid ${C.border}`, background: cardioForm.type===t ? C.greenLight : C.bg, color: cardioForm.type===t ? C.green : C.textMid, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+                            {[{k:"duration",l:"Duration (min)",p:"30"},{k:"distance",l:"Distance (mi)",p:"3.1"},{k:"calories",l:"Calories",p:"300"}].map(f => (
+                              <div key={f.k}>
+                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{f.l}</label>
+                                <input type="number" placeholder={f.p} value={cardioForm[f.k]} onChange={e => setCardioForm(cf => ({...cf, [f.k]: e.target.value}))} style={inputS} />
+                              </div>
+                            ))}
+                          </div>
+                          <input placeholder="Notes (optional)" value={cardioForm.notes} onChange={e => setCardioForm(f => ({...f, notes: e.target.value}))} style={{ ...inputS, width: "100%", marginBottom: 10 }} />
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => setShowCardioForm(false)} style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                            <button onClick={logCardio} style={{ flex: 2, padding: "11px", borderRadius: 12, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Save Cardio</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Today's workouts */}
+                      {dayWorkouts.length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "40px 20px", color: C.textLight }}>
+                          <div style={{ fontSize: 48, marginBottom: 12 }}>🏋️</div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: C.textMid, marginBottom: 6 }}>No workouts logged</div>
+                          <div style={{ fontSize: 13 }}>Start a lifting session or log cardio above</div>
+                        </div>
+                      ) : dayWorkouts.map(w => (
+                        <div key={w.id} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{w.type === "cardio" ? `🏃 ${w.type === "cardio" ? w.type.charAt(0).toUpperCase()+w.type.slice(1) : w.name}` : `🏋️ ${w.name}`}</div>
+                              {w.type === "lifting" && w.endTime && (
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 600 }}>
+                                  {Math.round((w.endTime - w.startTime)/60000)} min · {w.exercises.length} exercises · {w.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.done).length,0)} sets
+                                </div>
+                              )}
+                              {w.type === "cardio" && (
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 600 }}>
+                                  {w.type} {w.duration && `· ${w.duration} min`}{w.distance && ` · ${w.distance} mi`}{w.calories && ` · ${w.calories} cal`}
+                                </div>
+                              )}
+                            </div>
+                            <button onClick={() => deleteWorkout(w.id)} style={{ background: C.border, border: "none", color: C.textLight, width: 26, height: 26, borderRadius: 99, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                          </div>
+                          {w.type === "lifting" && w.exercises && w.exercises.map((ex, i) => (
+                            <div key={i} style={{ fontSize: 12, color: C.textMid, marginBottom: 3 }}>
+                              <span style={{ fontWeight: 700 }}>{ex.name}</span>
+                              <span style={{ color: C.textLight }}> — {ex.sets.filter(s=>s.done).length} sets{ex.sets.find(s=>s.weight) ? ` @ ${ex.sets.find(s=>s.weight).weight}lb` : ""}</span>
+                            </div>
+                          ))}
+                          {w.notes && <div style={{ marginTop: 8, fontSize: 12, color: C.textLight, fontStyle: "italic" }}>{w.notes}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* HISTORY */}
+                  {workoutTab === "history" && (
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Last 7 Days</div>
+                      {/* Week grid */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 16 }}>
+                        {weekDays.map(d => {
+                          const has = (workouts[d]||[]).length > 0;
+                          const isSelected = d === workoutDate;
+                          const dayLabel = new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"narrow"});
+                          return (
+                            <button key={d} onClick={() => { setWorkoutDate(d); }}
+                              style={{ padding: "8px 2px", borderRadius: 10, border: isSelected ? `2px solid ${C.blue}` : `2px solid ${C.border}`, background: isSelected ? C.blueLight : has ? C.greenLight : C.bg, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: isSelected ? C.blue : C.textLight }}>{dayLabel}</div>
+                              <div style={{ width: 8, height: 8, borderRadius: 99, background: has ? C.green : C.border }} />
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Selected day's workouts */}
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 10 }}>{formatDate(workoutDate)}</div>
+                      {(workouts[workoutDate]||[]).length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "30px 20px", color: C.textLight, fontSize: 13 }}>No workouts on this day</div>
+                      ) : (workouts[workoutDate]||[]).map(w => (
+                        <div key={w.id} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 14, marginBottom: 10 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 6 }}>{w.type==="cardio"?"🏃":"🏋️"} {w.name || w.type}</div>
+                          {w.type === "lifting" && w.exercises?.map((ex,i) => (
+                            <div key={i} style={{ fontSize: 12, color: C.textMid, marginBottom: 2 }}>
+                              <span style={{ fontWeight: 700 }}>{ex.name}</span>
+                              {ex.sets.filter(s=>s.done&&s.weight&&s.reps).map((s,si) => (
+                                <span key={si} style={{ color: C.textLight }}> {s.weight}×{s.reps}</span>
+                              ))}
+                            </div>
+                          ))}
+                          {w.type === "cardio" && (
+                            <div style={{ fontSize: 12, color: C.textMid }}>{w.type} · {w.duration}min{w.distance?` · ${w.distance}mi`:""}{w.calories?` · ${w.calories}cal`:""}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* ROUTINES */}
+                  {workoutTab === "routines" && (
+                    <div>
+                      {!showRoutineBuilder ? (
+                        <>
+                          <button onClick={() => setShowRoutineBuilder(true)} style={{ width: "100%", padding: "13px", borderRadius: 14, border: `2px dashed ${C.blue}`, background: C.blueLight, color: C.blue, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", marginBottom: 16 }}>
+                            + Create New Routine
+                          </button>
+                          {routines.length === 0 ? (
+                            <div style={{ textAlign: "center", padding: "40px 20px", color: C.textLight }}>
+                              <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: C.textMid, marginBottom: 6 }}>No routines yet</div>
+                              <div style={{ fontSize: 13 }}>Build a routine to quick-start workouts</div>
+                            </div>
+                          ) : routines.map(r => (
+                            <div key={r.id} style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 12, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{r.name}</div>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button onClick={() => startLifting(r)} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: C.blue, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>▶ Start</button>
+                                  <button onClick={() => deleteRoutine(r.id)} style={{ background: C.border, border: "none", color: C.textLight, width: 28, height: 28, borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                {r.exercises.map((e,i) => (
+                                  <span key={i} style={{ fontSize: 11, fontWeight: 700, color: C.textMid, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px" }}>{e}</span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      ) : (
+                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 14 }}>Build Routine</div>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 6 }}>Routine Name</label>
+                            <input placeholder="e.g. Push Day, Leg Day..." value={routineDraft.name} onChange={e => setRoutineDraft(d => ({...d, name: e.target.value}))} style={{ ...inputS, width: "100%" }} />
+                          </div>
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 8 }}>Exercises</label>
+                            {routineDraft.exercises.map((e,i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                <div style={{ flex: 1, padding: "9px 12px", borderRadius: 10, background: C.bg, border: `1px solid ${C.border}`, fontSize: 13, fontWeight: 700, color: C.text }}>{e}</div>
+                                <button onClick={() => setRoutineDraft(d => ({...d, exercises: d.exercises.filter((_,j)=>j!==i)}))} style={{ background: C.border, border: "none", color: C.textLight, width: 28, height: 28, borderRadius: 8, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                              </div>
+                            ))}
+                            <div style={{ marginTop: 8 }}>
+                              <input placeholder="Search & add exercise..." value={exerciseSearch} onChange={e => setExerciseSearch(e.target.value)} style={{ ...inputS, width: "100%", marginBottom: 8 }} />
+                              {exerciseSearch && (
+                                <div style={{ maxHeight: 180, overflowY: "auto", border: `1px solid ${C.border}`, borderRadius: 10, overflow: "hidden" }}>
+                                  {allExercises.filter(e => e.toLowerCase().includes(exerciseSearch.toLowerCase()) && !routineDraft.exercises.includes(e)).slice(0,8).map(e => (
+                                    <button key={e} onClick={() => { setRoutineDraft(d=>({...d,exercises:[...d.exercises,e]})); setExerciseSearch(""); }}
+                                      style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", background: C.bg, border: "none", borderBottom: `1px solid ${C.border}`, color: C.text, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                                      {e}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => { setShowRoutineBuilder(false); setRoutineDraft({name:"",exercises:[]}); setExerciseSearch(""); }} style={{ flex: 1, padding: "12px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                            <button onClick={saveRoutine} style={{ flex: 2, padding: "12px", borderRadius: 12, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Save Routine</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PRs */}
+                  {workoutTab === "prs" && (
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.textMid, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 14 }}>Personal Records</div>
+                      {Object.keys(prs).length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "50px 20px", color: C.textLight }}>
+                          <div style={{ fontSize: 48, marginBottom: 12 }}>🏆</div>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: C.textMid, marginBottom: 6 }}>No PRs yet</div>
+                          <div style={{ fontSize: 13 }}>Log some workouts and your PRs will appear here automatically</div>
+                        </div>
+                      ) : (
+                        Object.entries(EXERCISES).map(([group, exs]) => {
+                          const groupPRs = exs.filter(e => prs[e]);
+                          if (groupPRs.length === 0) return null;
+                          return (
+                            <div key={group} style={{ marginBottom: 16 }}>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{group}</div>
+                              {groupPRs.map(e => {
+                                const pr = prs[e];
+                                return (
+                                  <div key={e} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "12px 16px", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                                    <div>
+                                      <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{e}</div>
+                                      <div style={{ fontSize: 11, color: C.textLight, fontWeight: 600 }}>{new Date(pr.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                                    </div>
+                                    <div style={{ textAlign: "right" }}>
+                                      <div style={{ fontSize: 18, fontWeight: 900, color: C.orange }}>{pr.weight}<span style={{ fontSize: 11, fontWeight: 600, color: C.textLight }}>lb</span></div>
+                                      <div style={{ fontSize: 12, color: C.textMid, fontWeight: 700 }}>× {pr.reps} reps</div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+
             {tab === "goals" && (
               <div style={{ animation: "fadeIn 0.2s ease" }}>
 
