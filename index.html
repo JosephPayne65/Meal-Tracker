@@ -353,6 +353,41 @@
       { name: "Tillamook Farmstyle Thick Cut Pepper Jack (1 slice / 21g)", calories: 80, protein: 5, carbs: 0, fat: 7 },
       { name: "Tillamook Colby Jack Snack Bar (1.5 oz)", calories: 170, protein: 10, carbs: 0, fat: 14 },
       { name: "Tillamook Sharp Cheddar Snack Bar (1.5 oz)", calories: 170, protein: 10, carbs: 0, fat: 14 },
+      // Pizza - Homemade Dough & Base
+      { name: "Homemade Pizza Dough (1 ball / 250g, raw)", calories: 620, protein: 18, carbs: 124, fat: 4 },
+      { name: "Homemade Pizza Dough (1 ball / 250g, baked crust only)", calories: 670, protein: 20, carbs: 130, fat: 5 },
+      { name: "Homemade Pizza Margherita 12\" (1 slice / 1/8)", calories: 230, protein: 10, carbs: 28, fat: 9 },
+      { name: "Homemade Pizza Cheese 12\" (1 slice / 1/8)", calories: 250, protein: 12, carbs: 28, fat: 10 },
+      { name: "Homemade Pizza Ground Beef 12\" (1 slice / 1/8)", calories: 300, protein: 17, carbs: 27, fat: 13 },
+      { name: "Homemade Pizza Chicken 12\" (1 slice / 1/8)", calories: 265, protein: 18, carbs: 27, fat: 9 },
+      { name: "Homemade Pizza (whole 12\", cheese)", calories: 2000, protein: 96, carbs: 224, fat: 80 },
+      // Pizza Hut
+      { name: "Pizza Hut Hand Tossed Cheese (1 slice, medium)", calories: 220, protein: 10, carbs: 27, fat: 8 },
+      { name: "Pizza Hut Hand Tossed Ground Beef (1 slice, medium)", calories: 260, protein: 13, carbs: 27, fat: 11 },
+      { name: "Pizza Hut Hand Tossed Chicken (1 slice, medium)", calories: 230, protein: 14, carbs: 27, fat: 8 },
+      { name: "Pizza Hut Pan Pizza Cheese (1 slice, medium)", calories: 290, protein: 12, carbs: 30, fat: 14 },
+      { name: "Pizza Hut Pan Pizza Ground Beef (1 slice, medium)", calories: 330, protein: 15, carbs: 30, fat: 17 },
+      { name: "Pizza Hut Pan Pizza Chicken (1 slice, medium)", calories: 300, protein: 16, carbs: 30, fat: 13 },
+      { name: "Pizza Hut Thin N Crispy Cheese (1 slice, medium)", calories: 190, protein: 9, carbs: 20, fat: 8 },
+      { name: "Pizza Hut Thin N Crispy Ground Beef (1 slice, medium)", calories: 230, protein: 12, carbs: 20, fat: 12 },
+      { name: "Pizza Hut Thin N Crispy Chicken (1 slice, medium)", calories: 200, protein: 13, carbs: 20, fat: 8 },
+      { name: "Pizza Hut Stuffed Crust Cheese (1 slice, large)", calories: 370, protein: 17, carbs: 42, fat: 14 },
+      { name: "Pizza Hut Stuffed Crust Ground Beef (1 slice, large)", calories: 420, protein: 21, carbs: 42, fat: 18 },
+      { name: "Pizza Hut Stuffed Crust Chicken (1 slice, large)", calories: 380, protein: 22, carbs: 42, fat: 14 },
+      { name: "Pizza Hut Personal Pan Pizza Cheese (whole)", calories: 590, protein: 26, carbs: 68, fat: 24 },
+      { name: "Pizza Hut WingStreet Bone-In Wings (2 pc)", calories: 160, protein: 13, carbs: 4, fat: 10 },
+      { name: "Pizza Hut Breadstick (1 stick)", calories: 140, protein: 4, carbs: 20, fat: 5 },
+      // Rosati's Pizza
+      { name: "Rosati's Chicago Thin Crust Cheese (1 slice)", calories: 210, protein: 10, carbs: 22, fat: 9 },
+      { name: "Rosati's Chicago Thin Crust Ground Beef (1 slice)", calories: 260, protein: 14, carbs: 22, fat: 13 },
+      { name: "Rosati's Chicago Thin Crust Chicken (1 slice)", calories: 230, protein: 15, carbs: 22, fat: 9 },
+      { name: "Rosati's Chicago Thin Crust Roast Beef (1 slice)", calories: 245, protein: 16, carbs: 22, fat: 11 },
+      { name: "Rosati's Deep Dish Cheese (1 slice)", calories: 310, protein: 13, carbs: 34, fat: 14 },
+      { name: "Rosati's Deep Dish Ground Beef (1 slice)", calories: 370, protein: 18, carbs: 34, fat: 18 },
+      { name: "Rosati's Deep Dish Chicken (1 slice)", calories: 330, protein: 19, carbs: 34, fat: 13 },
+      { name: "Rosati's Deep Dish Roast Beef (1 slice)", calories: 350, protein: 20, carbs: 34, fat: 15 },
+      { name: "Rosati's Italian Beef Sandwich", calories: 580, protein: 38, carbs: 54, fat: 22 },
+      { name: "Rosati's Chicken Sandwich", calories: 490, protein: 35, carbs: 50, fat: 16 },
     ];
 
     const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -440,7 +475,7 @@
     }
 
     function App() {
-      const [tab, setTab] = useState("log");
+      const [tab, setTab] = useState("dash");
       const [goals, setGoals] = useState(emptyGoals);
       const [entries, setEntries] = useState({});
       const [form, setForm] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: "Breakfast", qty: 1 });
@@ -455,6 +490,9 @@
       const [selectedDate, setSelectedDate] = useState(todayKey());
       const [toast, setToast] = useState(null);
       const [goalsSubTab, setGoalsSubTab] = useState("view");
+      const [weightLog, setWeightLog] = useState({});
+      const [weightEntry, setWeightEntry] = useState("");
+      const [bodyWeightUnit, setBodyWeightUnit] = useState("lbs");
       const [workoutTab, setWorkoutTab] = useState("log");
       const [workouts, setWorkouts] = useState({});
       const [routines, setRoutines] = useState([]);
@@ -485,13 +523,15 @@
             if (d.entries) setEntries(d.entries);
             if (d.workouts) setWorkouts(d.workouts);
             if (d.routines) setRoutines(d.routines);
+            if (d.weightLog) setWeightLog(d.weightLog);
+            if (d.bodyWeightUnit) setBodyWeightUnit(d.bodyWeightUnit);
           }
         } catch {}
       }, []);
 
       useEffect(() => {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries, workouts, routines })); } catch {}
-      }, [goals, entries, workouts, routines]);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries, workouts, routines, weightLog, bodyWeightUnit })); } catch {}
+      }, [goals, entries, workouts, routines, weightLog, bodyWeightUnit]);
 
       const showToast = (msg, type="success") => {
         setToast({ msg, type });
@@ -572,54 +612,62 @@
           )}
 
           {/* Header */}
-          <div style={{ background: C.blue, padding: "24px 20px 0" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <div style={{ background: C.blue, padding: "20px 20px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tab === "dash" ? 16 : 12 }}>
               <div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 2 }}>Macro Tracker</div>
-                <div style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{formatDate(selectedDate)}</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 1 }}>Macro Tracker</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>{formatDate(selectedDate)}</div>
               </div>
-              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 10, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {tab !== "dash" && (
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>{caloriesLeft >= 0 ? "remaining" : "over"}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: caloriesLeft < 0 ? "#ffcdd2" : "#fff" }}>{Math.abs(Math.round(caloriesLeft))} cal</div>
+                  </div>
+                )}
+                <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                  style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 10, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} />
+              </div>
             </div>
 
-            {/* Calorie summary card */}
-            <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: "16px 16px 0 0", padding: "18px 20px 0" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Calories</div>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                    <span style={{ fontSize: 42, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{Math.round(totals.calories)}</span>
-                    <span style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>/ {goals.calories}</span>
+            {/* Dashboard header expansion */}
+            {tab === "dash" && (
+              <div style={{ background: "rgba(255,255,255,0.12)", borderRadius: "16px 16px 0 0", padding: "16px 20px 0" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Calories Today</div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                      <span style={{ fontSize: 38, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{Math.round(totals.calories)}</span>
+                      <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", fontWeight: 600 }}>/ {goals.calories}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{caloriesLeft >= 0 ? "Remaining" : "Over"}</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: caloriesLeft < 0 ? "#ffcdd2" : "#fff", lineHeight: 1.1 }}>{Math.abs(Math.round(caloriesLeft))}</div>
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{caloriesLeft >= 0 ? "Remaining" : "Over"}</div>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: caloriesLeft < 0 ? "#ffcdd2" : "#fff", lineHeight: 1.1 }}>{Math.abs(Math.round(caloriesLeft))}</div>
+                <div style={{ height: 5, background: "rgba(255,255,255,0.2)", borderRadius: 99, overflow: "hidden", marginBottom: 16 }}>
+                  <div style={{ height: "100%", width: `${calPct}%`, background: caloriesLeft < 0 ? "#ffcdd2" : "rgba(255,255,255,0.9)", borderRadius: 99, transition: "width 0.5s ease" }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-around", paddingBottom: 14 }}>
+                  <MacroCircle value={totals.protein} goal={goals.protein} color="#fff" label="Protein" />
+                  <MacroCircle value={totals.carbs} goal={goals.carbs} color="#fff" label="Carbs" />
+                  <MacroCircle value={totals.fat} goal={goals.fat} color="#fff" label="Fat" />
                 </div>
               </div>
-              {/* Calorie bar */}
-              <div style={{ height: 6, background: "rgba(255,255,255,0.2)", borderRadius: 99, overflow: "hidden", marginBottom: 18 }}>
-                <div style={{ height: "100%", width: `${calPct}%`, background: caloriesLeft < 0 ? "#ffcdd2" : "rgba(255,255,255,0.9)", borderRadius: 99, transition: "width 0.5s ease" }} />
-              </div>
-              {/* Macro circles */}
-              <div style={{ display: "flex", justifyContent: "space-around", paddingBottom: 16 }}>
-                <MacroCircle value={totals.protein} goal={goals.protein} color="#fff" label="Protein" />
-                <MacroCircle value={totals.carbs} goal={goals.carbs} color="#fff" label="Carbs" />
-                <MacroCircle value={totals.fat} goal={goals.fat} color="#fff" label="Fat" />
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Tab bar */}
-          <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 8px" }}>
-            {[["log", "📋", "Log"], ["add", "➕", "Add"], ["workout", "💪", "Workout"], ["goals", "🎯", "Goals"]].map(([t, icon, label]) => (
+          <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 4px" }}>
+            {[["dash", "🏠", "Home"], ["log", "📋", "Log"], ["add", "➕", "Add"], ["workout", "💪", "Train"], ["goals", "🎯", "Goals"]].map(([t, icon, label]) => (
               <button key={t} onClick={() => setTab(t)} style={{
-                flex: 1, padding: "12px 4px", background: "none", border: "none",
+                flex: 1, padding: "11px 2px", background: "none", border: "none",
                 borderBottom: tab === t ? `3px solid ${C.blue}` : "3px solid transparent",
                 color: tab === t ? C.blue : C.textLight,
-                fontWeight: 800, fontSize: 11, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit"
+                fontWeight: 800, fontSize: 10, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit"
               }}>
-                <span style={{ fontSize: 16 }}>{icon}</span>
+                <span style={{ fontSize: 15 }}>{icon}</span>
                 {label}
               </button>
             ))}
@@ -627,6 +675,245 @@
 
           {/* Content */}
           <div style={{ flex: 1, padding: "16px 16px 20px" }}>
+
+            {/* DASHBOARD TAB */}
+            {tab === "dash" && (() => {
+              const last7 = Array.from({length:7},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-i); return d.toISOString().split("T")[0]; }).reverse();
+              const last30 = Array.from({length:30},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-i); return d.toISOString().split("T")[0]; }).reverse();
+
+              // Nutrition stats
+              const weekCalAvg = (() => {
+                const days = last7.filter(d => (entries[d]||[]).length > 0);
+                if (!days.length) return 0;
+                return Math.round(days.reduce((a,d) => a + (entries[d]||[]).reduce((s,e)=>s+e.calories*e.qty,0), 0) / days.length);
+              })();
+              const weekProtAvg = (() => {
+                const days = last7.filter(d => (entries[d]||[]).length > 0);
+                if (!days.length) return 0;
+                return Math.round(days.reduce((a,d) => a + (entries[d]||[]).reduce((s,e)=>s+e.protein*e.qty,0), 0) / days.length);
+              })();
+              const daysLogged = last7.filter(d => (entries[d]||[]).length > 0).length;
+              const daysWorkedOut = last7.filter(d => (workouts[d]||[]).length > 0).length;
+
+              // Weight stats
+              const weightEntries = Object.entries(weightLog).filter(([,v])=>v).sort(([a],[b])=>a.localeCompare(b));
+              const latestWeight = weightEntries.length ? weightEntries[weightEntries.length-1][1] : null;
+              const firstWeight = weightEntries.length ? weightEntries[0][1] : null;
+              const weightChange = latestWeight && firstWeight ? (parseFloat(latestWeight) - parseFloat(firstWeight)).toFixed(1) : null;
+
+              // Workout stats
+              const totalWorkouts = Object.values(workouts).flat().length;
+              const totalSets = Object.values(workouts).flat().filter(w=>w.type==="lifting").reduce((a,w)=>a+w.exercises.reduce((b,e)=>b+e.sets.filter(s=>s.done).length,0),0);
+
+              // Log weight
+              const logWeight = () => {
+                if (!weightEntry) return;
+                setWeightLog(prev => ({ ...prev, [selectedDate]: weightEntry }));
+                setWeightEntry("");
+                showToast("Weight logged!");
+              };
+
+              // Mini sparkline for weight
+              const recentWeights = last30.map(d => ({ date: d, val: weightLog[d] ? parseFloat(weightLog[d]) : null })).filter(x => x.val);
+              const minW = recentWeights.length ? Math.min(...recentWeights.map(x=>x.val)) - 2 : 0;
+              const maxW = recentWeights.length ? Math.max(...recentWeights.map(x=>x.val)) + 2 : 1;
+
+              // Calorie bar chart last 7 days
+              const maxCal = Math.max(...last7.map(d => (entries[d]||[]).reduce((s,e)=>s+e.calories*e.qty,0)), goals.calories);
+
+              return (
+                <div style={{ animation: "fadeIn 0.2s ease" }}>
+
+                  {/* Quick action buttons */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+                    {[["➕","Log Food","add"],["💪","Workout","workout"],["🎯","Goals","goals"]].map(([icon,label,t]) => (
+                      <button key={t} onClick={() => setTab(t)} style={{ padding: "12px 6px", borderRadius: 14, border: `1.5px solid ${C.border}`, background: C.card, fontWeight: 800, fontSize: 12, color: C.textMid, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                        <span style={{ fontSize: 20 }}>{icon}</span>{label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Weight Tracker Card */}
+                  <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>⚖️ Weight Tracker</div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {["lbs","kg"].map(u => (
+                          <button key={u} onClick={() => setBodyWeightUnit(u)} style={{ padding: "4px 10px", borderRadius: 8, border: bodyWeightUnit===u ? `2px solid ${C.blue}` : `2px solid ${C.border}`, background: bodyWeightUnit===u ? C.blueLight : C.bg, color: bodyWeightUnit===u ? C.blue : C.textLight, fontWeight: 700, fontSize: 11, cursor: "pointer", fontFamily: "inherit" }}>{u}</button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Current weight display */}
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
+                      <div style={{ flex: 1 }}>
+                        {latestWeight ? (
+                          <div>
+                            <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Current</div>
+                            <div style={{ fontSize: 32, fontWeight: 900, color: C.text, lineHeight: 1 }}>{latestWeight}<span style={{ fontSize: 13, color: C.textLight, fontWeight: 600 }}> {bodyWeightUnit}</span></div>
+                            {weightChange !== null && parseFloat(weightChange) !== 0 && (
+                              <div style={{ fontSize: 12, fontWeight: 700, color: parseFloat(weightChange) < 0 ? C.green : C.red, marginTop: 2 }}>
+                                {parseFloat(weightChange) < 0 ? "▼" : "▲"} {Math.abs(weightChange)} {bodyWeightUnit} total
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 13, color: C.textLight }}>No weight logged yet</div>
+                        )}
+                      </div>
+                      {goals.goalWeight && (
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Goal</div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: C.textMid }}>{goals.goalWeight}<span style={{ fontSize: 11 }}> {bodyWeightUnit}</span></div>
+                          {latestWeight && <div style={{ fontSize: 11, color: C.textLight }}>{Math.abs((parseFloat(latestWeight)-parseFloat(goals.goalWeight)).toFixed(1))} to go</div>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Log today's weight */}
+                    <div style={{ display: "flex", gap: 8, marginBottom: recentWeights.length > 1 ? 14 : 0 }}>
+                      <input type="number" placeholder={`Enter weight (${bodyWeightUnit})`} value={weightEntry} onChange={e => setWeightEntry(e.target.value)}
+                        style={{ ...inputStyle, flex: 1, padding: "10px 14px", fontSize: 15 }} />
+                      <button onClick={logWeight} style={{ padding: "10px 18px", borderRadius: 12, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Log</button>
+                    </div>
+
+                    {/* Sparkline */}
+                    {recentWeights.length > 1 && (
+                      <div>
+                        <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700, marginBottom: 6 }}>Last 30 Days</div>
+                        <svg width="100%" height="60" viewBox={`0 0 300 60`} style={{ display: "block" }}>
+                          <polyline
+                            points={recentWeights.map((x,i) => `${(i/(recentWeights.length-1))*290+5},${55-((x.val-minW)/(maxW-minW))*50}`).join(" ")}
+                            fill="none" stroke={C.blue} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                          {recentWeights.map((x,i) => (
+                            <circle key={i} cx={(i/(recentWeights.length-1))*290+5} cy={55-((x.val-minW)/(maxW-minW))*50} r="3" fill={C.blue} />
+                          ))}
+                        </svg>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textLight }}>
+                          <span>{recentWeights[0].date.slice(5)}</span>
+                          <span>{recentWeights[recentWeights.length-1].date.slice(5)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* This Week Stats */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    {[
+                      { label: "Avg Calories", value: weekCalAvg || "—", sub: "this week", color: C.blue, icon: "🔥" },
+                      { label: "Avg Protein", value: weekProtAvg ? weekProtAvg+"g" : "—", sub: "this week", color: C.green, icon: "💪" },
+                      { label: "Days Logged", value: `${daysLogged}/7`, sub: "this week", color: C.orange, icon: "📋" },
+                      { label: "Workouts", value: `${daysWorkedOut}/7`, sub: "this week", color: C.purple, icon: "🏋️" },
+                    ].map(s => (
+                      <div key={s.label} style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: "14px 16px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                        <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: s.color, lineHeight: 1 }}>{s.value}</div>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: C.textMid, marginTop: 2 }}>{s.label}</div>
+                        <div style={{ fontSize: 10, color: C.textLight }}>{s.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Calorie bar chart - last 7 days */}
+                  <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 14 }}>📊 Calories — Last 7 Days</div>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80 }}>
+                      {last7.map(d => {
+                        const cal = (entries[d]||[]).reduce((s,e)=>s+e.calories*e.qty,0);
+                        const h = maxCal > 0 ? Math.max((cal/maxCal)*72, cal > 0 ? 4 : 0) : 0;
+                        const isToday = d === todayKey();
+                        const over = cal > goals.calories;
+                        return (
+                          <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                            {cal > 0 && <div style={{ fontSize: 8, color: C.textLight, fontWeight: 700 }}>{Math.round(cal/1000*10)/10}k</div>}
+                            <div style={{ width: "100%", height: h, borderRadius: "4px 4px 0 0", background: over ? C.red : isToday ? C.blue : C.blueLight, minHeight: cal > 0 ? 4 : 0, transition: "height 0.4s ease" }} />
+                            <div style={{ fontSize: 9, fontWeight: isToday ? 800 : 600, color: isToday ? C.blue : C.textLight }}>
+                              {new Date(d+"T12:00:00").toLocaleDateString("en-US",{weekday:"narrow"})}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                      {[[C.blue,"On track"],[C.red,"Over goal"],[C.blueLight,"Under"]].map(([c,l]) => (
+                        <div key={l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 2, background: c }} />
+                          <span style={{ fontSize: 10, color: C.textLight, fontWeight: 600 }}>{l}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Weight history log */}
+                  {weightEntries.length > 0 && (
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12 }}>📅 Weight History</div>
+                      <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                        {[...weightEntries].reverse().map(([date, val]) => (
+                          <div key={date} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${C.border}` }}>
+                            <div style={{ fontSize: 13, color: C.textMid, fontWeight: 600 }}>
+                              {new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ fontSize: 16, fontWeight: 800, color: C.text }}>{val} <span style={{ fontSize: 11, color: C.textLight }}>{bodyWeightUnit}</span></div>
+                              <button onClick={() => { setWeightLog(prev => { const n={...prev}; delete n[date]; return n; }); }} style={{ background: C.border, border: "none", color: C.textLight, width: 22, height: 22, borderRadius: 99, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All-time stats */}
+                  <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 12 }}>🏅 All-Time Stats</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                      {[
+                        { label: "Total Workouts", value: totalWorkouts },
+                        { label: "Total Sets", value: totalSets },
+                        { label: "Days Tracked", value: Object.keys(entries).length },
+                      ].map(s => (
+                        <div key={s.label} style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 24, fontWeight: 900, color: C.blue }}>{s.value}</div>
+                          <div style={{ fontSize: 10, color: C.textLight, fontWeight: 700 }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Today's food summary */}
+                  {dayEntries.length > 0 && (
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>🍽️ Today's Nutrition</div>
+                        <button onClick={() => setTab("log")} style={{ fontSize: 11, color: C.blue, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>View all →</button>
+                      </div>
+                      <MacroBar label="Protein" value={totals.protein} goal={goals.protein} color={C.blue} />
+                      <MacroBar label="Carbs" value={totals.carbs} goal={goals.carbs} color={C.orange} />
+                      <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color={C.purple} />
+                    </div>
+                  )}
+
+                  {/* Today's workouts summary */}
+                  {(workouts[selectedDate]||[]).length > 0 && (
+                    <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>💪 Today's Workouts</div>
+                        <button onClick={() => setTab("workout")} style={{ fontSize: 11, color: C.blue, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>View all →</button>
+                      </div>
+                      {(workouts[selectedDate]||[]).map(w => (
+                        <div key={w.id} style={{ fontSize: 13, color: C.textMid, marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${C.border}` }}>
+                          <span style={{ fontWeight: 800, color: C.text }}>{w.type==="cardio"?"🏃":"🏋️"} {w.name||w.type}</span>
+                          {w.type==="lifting" && <span style={{ color: C.textLight }}> · {w.exercises?.length||0} exercises</span>}
+                          {w.type==="cardio" && w.duration && <span style={{ color: C.textLight }}> · {w.duration} min</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                </div>
+              );
+            })()}
 
             {/* LOG TAB */}
             {tab === "log" && (
