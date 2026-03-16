@@ -484,6 +484,26 @@
       { name: "Ramen Egg (1 soft boiled / 50g)", calories: 78, protein: 6, carbs: 1, fat: 5 },
       { name: "Ramen Noodles (cooked, no broth, 1 cup)", calories: 220, protein: 7, carbs: 32, fat: 7 },
       { name: "Birria Ramen (1 bowl)", calories: 680, protein: 36, carbs: 62, fat: 28 },
+      // Homemade Cookies
+      { name: "Chocolate Chip Cookie Homemade (1 large / 45g)", calories: 218, protein: 3, carbs: 30, fat: 10 },
+      { name: "Chocolate Chip Cookie Homemade (1 medium / 30g)", calories: 148, protein: 2, carbs: 20, fat: 7 },
+      { name: "Double Chocolate Cookie Homemade (1 large / 45g)", calories: 235, protein: 3, carbs: 31, fat: 12 },
+      { name: "Sugar Cookie Homemade (1 large / 40g)", calories: 195, protein: 2, carbs: 28, fat: 9 },
+      { name: "Sugar Cookie with Frosting (1 large / 55g)", calories: 260, protein: 2, carbs: 40, fat: 11 },
+      { name: "Snickerdoodle Cookie Homemade (1 / 35g)", calories: 165, protein: 2, carbs: 24, fat: 7 },
+      { name: "Peanut Butter Cookie Homemade (1 / 40g)", calories: 210, protein: 4, carbs: 24, fat: 11 },
+      { name: "Oatmeal Raisin Cookie Homemade (1 / 40g)", calories: 165, protein: 2, carbs: 26, fat: 6 },
+      { name: "Oatmeal Chocolate Chip Cookie Homemade (1 / 40g)", calories: 185, protein: 3, carbs: 27, fat: 8 },
+      { name: "White Chocolate Macadamia Cookie Homemade (1 / 45g)", calories: 230, protein: 2, carbs: 28, fat: 12 },
+      { name: "M&M Cookie Homemade (1 / 45g)", calories: 220, protein: 2, carbs: 31, fat: 10 },
+      { name: "Butterscotch Cookie Homemade (1 / 35g)", calories: 175, protein: 2, carbs: 25, fat: 8 },
+      { name: "Shortbread Cookie Homemade (1 / 25g)", calories: 130, protein: 1, carbs: 16, fat: 7 },
+      { name: "Thumbprint Cookie Homemade (1 / 30g)", calories: 145, protein: 1, carbs: 20, fat: 7 },
+      { name: "Lemon Drop Cookie Homemade (1 / 35g)", calories: 155, protein: 2, carbs: 22, fat: 7 },
+      { name: "Molasses Cookie Homemade (1 / 35g)", calories: 150, protein: 2, carbs: 23, fat: 6 },
+      { name: "Ginger Snap Homemade (1 / 20g)", calories: 85, protein: 1, carbs: 13, fat: 3 },
+      { name: "Cookie Dough Raw (2 tbsp / 30g)", calories: 145, protein: 1, carbs: 19, fat: 7 },
+      { name: "Cookie Batch Dozen Chocolate Chip (whole)", calories: 1780, protein: 24, carbs: 240, fat: 84 },
     ];
 
     const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -1259,7 +1279,29 @@
 
             {/* WORKOUT TAB */}
             {tab === "workout" && (() => {
+              // Unified activity type metadata — cardio activities get a cardio:true flag
+              const CARDIO_META = {
+                "Running":         { icon:"🏃", cardio:true, fields:["duration","distance","calories"], extra:[] },
+                "Treadmill":       { icon:"🏃", cardio:true, fields:["duration","distance","calories"], extra:["speed","incline"] },
+                "Walking":         { icon:"🚶", cardio:true, fields:["duration","distance","calories"], extra:[] },
+                "Hiking":          { icon:"🥾", cardio:true, fields:["duration","distance","calories"], extra:["elevation"] },
+                "Cycling - Indoor":{ icon:"🚴", cardio:true, fields:["duration","distance","calories"], extra:["speed","watts"] },
+                "Cycling - Outdoor":{ icon:"🚴", cardio:true, fields:["duration","distance","calories"], extra:["speed","elevation"] },
+                "Mountain Biking": { icon:"🚵", cardio:true, fields:["duration","distance","calories"], extra:["speed","elevation"] },
+                "Indoor Rowing":   { icon:"🚣", cardio:true, fields:["duration","distance","calories"], extra:["split","spm"], distLabel:"Distance (m)", distPlaceholder:"2000" },
+                "Elliptical":      { icon:"⚡", cardio:true, fields:["duration","distance","calories"], extra:[] },
+                "Swimming":        { icon:"🏊", cardio:true, fields:["duration","distance","calories"], extra:[] },
+                "Jump Rope":       { icon:"🪢", cardio:true, fields:["duration","calories"], extra:[] },
+                "Stair Climber":   { icon:"🪜", cardio:true, fields:["duration","calories"], extra:[] },
+                "Boxing":          { icon:"🥊", cardio:true, fields:["duration","calories"], extra:["rounds"] },
+                "HIIT":            { icon:"🔥", cardio:true, fields:["duration","calories"], extra:[] },
+                "Circuit Training":{ icon:"💪", cardio:true, fields:["duration","calories"], extra:[] },
+                "Other":           { icon:"🏅", cardio:true, fields:["duration","distance","calories"], extra:[] },
+              };
+              const CARDIO_TYPES = Object.keys(CARDIO_META);
+
               const EXERCISES = {
+                "Cardio": CARDIO_TYPES,
                 "Chest": ["Bench Press","Incline Bench Press","Decline Bench Press","Dumbbell Fly","Cable Fly","Push Up","Chest Dip","Landmine Press"],
                 "Back": ["Deadlift","Pull Up","Lat Pulldown","Bent Over Row","Seated Row","T-Bar Row","Single Arm Row","Face Pull","Shrug"],
                 "Shoulders": ["Overhead Press","Dumbbell Shoulder Press","Lateral Raise","Front Raise","Rear Delt Fly","Arnold Press","Upright Row"],
@@ -1271,8 +1313,7 @@
                 "Bodyweight - Upper": [
                   "Push Up","Wide Push Up","Diamond Push Up","Decline Push Up","Incline Push Up","Archer Push Up","Pike Push Up","Pseudo Planche Push Up",
                   "Pull Up","Chin Up","Neutral Grip Pull Up","Commando Pull Up","Typewriter Pull Up","Negative Pull Up",
-                  "Dip","Ring Dip","Tricep Dip","Chair Dip",
-                  "Inverted Row","Australian Pull Up","Bodyweight Row",
+                  "Dip","Ring Dip","Tricep Dip","Chair Dip","Inverted Row","Australian Pull Up","Bodyweight Row",
                   "Wall Handstand Hold","Handstand Push Up","Pike Hold",
                 ],
                 "Bodyweight - Lower": [
@@ -1296,6 +1337,16 @@
                   "Sprawl to Push Up","Squat to Push Up","Man Maker",
                   "Turkish Get Up","Windmill","Lateral Shuffle","High Knees","Butt Kicks",
                 ],
+                "Boxing": [
+                  "Jab","Cross","Hook","Uppercut","Jab-Cross (1-2)","Jab-Cross-Hook (1-2-3)",
+                  "Jab-Cross-Hook-Cross (1-2-3-2)","Jab-Cross-Lead Hook-Rear Uppercut",
+                  "Body Jab","Body Cross","Body Hook","Overhand Right",
+                  "Slip Left","Slip Right","Roll Under","Parry","Bob and Weave",
+                  "Shadowboxing","Heavy Bag Work","Speed Bag","Double End Bag","Mitts",
+                  "Sparring","Footwork Drills","Defense Drills",
+                  "Box Jump (Boxing)","Squat to Uppercut","Lunge to Hook",
+                  "Plank Punches","Push Up to Jab","Jump Rope (Boxing)",
+                ],
                 "Animal Flow": [
                   "Beast Hold","Beast Reach","Beast to Crab","Crab Hold","Crab Reach",
                   "Ape Hold","Ape Reach","Ape to Squat","Loaded Beast","Loaded Crab",
@@ -1313,16 +1364,6 @@
                   "Downward Dog","Lizard Pose","Couch Stretch","Quad Stretch",
                   "90/90 Hip Stretch","Deep Squat Hold","Ankle Circles","Wrist Circles",
                 ],
-              };
-              const CARDIO_TYPES = [
-                "Running","Walking","Hiking","Cycling - Indoor","Cycling - Outdoor","Mountain Biking",
-                "Indoor Rowing","Elliptical","Swimming","Jump Rope","Stair Climber",
-                "HIIT","Circuit Training","Other",
-              ];
-              const CARDIO_ICONS = {
-                "Running":"🏃","Walking":"🚶","Hiking":"🥾","Cycling - Indoor":"🚴","Cycling - Outdoor":"🚴",
-                "Mountain Biking":"🚵","Indoor Rowing":"🚣","Elliptical":"⚡","Swimming":"🏊",
-                "Jump Rope":"🪢","Stair Climber":"🪜","HIIT":"🔥","Circuit Training":"💪","Other":"🏅",
               };
               const allExercises = Object.values(EXERCISES).flat();
 
@@ -1381,6 +1422,13 @@
               };
 
               const addExerciseToActive = (name) => {
+                if (CARDIO_META[name]) {
+                  setCardioForm(f => ({ ...f, type: name }));
+                  setShowExercisePicker(false);
+                  setExerciseSearch("");
+                  setShowCardioForm(true);
+                  return;
+                }
                 const updated = { ...activeWorkout, exercises: [...activeWorkout.exercises, { name, sets: [{weight:"",reps:"",done:false}] }] };
                 setActiveWorkout(updated);
                 setShowExercisePicker(false);
@@ -1388,7 +1436,13 @@
               };
 
               const addSingleExercise = (name) => {
-                // Find or create a workout for today
+                if (CARDIO_META[name]) {
+                  setCardioForm(f => ({ ...f, type: name }));
+                  setShowCardioForm(true);
+                  setWorkoutTab("log");
+                  setExerciseSearch("");
+                  return;
+                }
                 const todayWorkouts = workouts[workoutDate] || [];
                 const existing = todayWorkouts.find(w => w.type === "lifting" && !w.endTime);
                 if (existing) {
@@ -1399,7 +1453,6 @@
                   setActiveWorkout(w);
                 }
                 setWorkoutTab("active");
-                setShowExercisePicker(false);
                 setExerciseSearch("");
               };
 
@@ -1553,13 +1606,20 @@
                         <div style={{ maxHeight: 300, overflowY: "auto" }}>
                           {groupedEx.map(({group, exs}) => (
                             <div key={group} style={{ marginBottom: 10 }}>
-                              <div style={{ fontSize: 10, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>{group}</div>
-                              {exs.map(e => (
-                                <button key={e} onClick={() => addExerciseToActive(e)}
-                                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 12px", marginBottom: 4, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-                                  {e}
-                                </button>
-                              ))}
+                              <div style={{ fontSize: 10, fontWeight: 800, color: group==="Cardio" ? C.green : C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, paddingLeft: 4 }}>{group==="Cardio"?"🏃 ":""}{group}</div>
+                              {exs.map(e => {
+                                const isCardio = CARDIO_META[e];
+                                return (
+                                  <button key={e} onClick={() => addExerciseToActive(e)}
+                                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", padding: "10px 12px", marginBottom: 4, borderRadius: 10, border: `1px solid ${C.border}`, background: C.bg, color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                      {isCardio && <span>{isCardio.icon}</span>}
+                                      <span>{e}</span>
+                                    </div>
+                                    {isCardio && <span style={{ fontSize:9, fontWeight:800, color:C.green, background:C.greenLight, padding:"2px 6px", borderRadius:99 }}>CARDIO</span>}
+                                  </button>
+                                );
+                              })}
                             </div>
                           ))}
                         </div>
@@ -1603,15 +1663,12 @@
                       </div>
 
                       {/* Start buttons */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-                        <button onClick={() => startLifting()} style={{ padding: "14px 8px", borderRadius: 14, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                        <button onClick={() => startLifting()} style={{ padding: "14px 8px", borderRadius: 14, border: "none", background: C.blue, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
                           <span style={{ fontSize: 22 }}>🏋️</span>Full Workout
                         </button>
-                        <button onClick={() => { setShowExercisePicker(true); setWorkoutTab("quickadd"); }} style={{ padding: "14px 8px", borderRadius: 14, border: "none", background: C.purple, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                          <span style={{ fontSize: 22 }}>💪</span>Quick Add
-                        </button>
-                        <button onClick={() => setShowCardioForm(true)} style={{ padding: "14px 8px", borderRadius: 14, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
-                          <span style={{ fontSize: 22 }}>🏃</span>Cardio
+                        <button onClick={() => { setExerciseSearch(""); setWorkoutTab("quickadd"); }} style={{ padding: "14px 8px", borderRadius: 14, border: "none", background: C.purple, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                          <span style={{ fontSize: 22 }}>🔍</span>Find Activity
                         </button>
                       </div>
 
@@ -1631,63 +1688,66 @@
                       )}
 
                       {/* Cardio form */}
-                      {showCardioForm && (
-                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${editingCardio ? C.orange : C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>{editingCardio ? "✏️ Edit Cardio" : "🏃 Log Cardio"}</div>
-                          <div style={{ marginBottom: 10 }}>
-                            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 6 }}>Type</label>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                              {CARDIO_TYPES.map(t => (
-                                <button key={t} onClick={() => setCardioForm(f => ({...f, type: t}))}
-                                  style={{ padding: "7px 12px", borderRadius: 99, border: cardioForm.type===t ? `2px solid ${C.green}` : `2px solid ${C.border}`, background: cardioForm.type===t ? C.greenLight : C.bg, color: cardioForm.type===t ? C.green : C.textMid, fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                                  {CARDIO_ICONS[t]} {t}
-                                </button>
-                              ))}
+                      {showCardioForm && (() => {
+                        const meta = CARDIO_META[cardioForm.type] || CARDIO_META["Other"];
+                        const icon = meta.icon;
+                        return (
+                          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${editingCardio ? C.orange : C.green}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom: 12 }}>
+                              <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>{icon} {editingCardio ? `Edit ${cardioForm.type}` : `Log ${cardioForm.type}`}</div>
+                              <button onClick={() => setCardioForm(f=>({...f, type:""}))} style={{ fontSize:11, color:C.blue, fontWeight:700, background:"none", border:"none", cursor:"pointer", fontFamily:"inherit" }}>Change type</button>
+                            </div>
+                            {/* Main fields */}
+                            <div style={{ display: "grid", gridTemplateColumns: meta.fields.length === 3 ? "1fr 1fr 1fr" : "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                              {meta.fields.map(k => {
+                                const labels = { duration:"Duration (min)", distance: meta.distLabel||"Distance (mi)", calories:"Calories" };
+                                const placeholders = { duration:"30", distance: meta.distPlaceholder||"3.1", calories:"300" };
+                                return (
+                                  <div key={k}>
+                                    <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{labels[k]}</label>
+                                    <input type="number" placeholder={placeholders[k]} value={cardioForm[k]||""} onChange={e => setCardioForm(cf => ({...cf, [k]: e.target.value}))} style={inputS} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {/* Extra fields */}
+                            {meta.extra.length > 0 && (
+                              <div style={{ display: "grid", gridTemplateColumns: `repeat(${meta.extra.length}, 1fr)`, gap: 8, marginBottom: 10 }}>
+                                {meta.extra.map(k => {
+                                  const labels = { speed:"Avg Speed (mph)", incline:"Incline (%)", watts:"Avg Watts", elevation:"Elevation (ft)", split:"Split (/500m)", spm:"Avg SPM", rounds:"Rounds" };
+                                  const placeholders = { speed:"15", incline:"2", watts:"200", elevation:"500", split:"2:00", spm:"24", rounds:"6" };
+                                  const isText = k === "split";
+                                  return (
+                                    <div key={k}>
+                                      <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{labels[k]}</label>
+                                      <input type={isText?"text":"number"} placeholder={placeholders[k]} value={cardioForm[k]||""} onChange={e => setCardioForm(f=>({...f,[k]:e.target.value}))} style={inputS} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <input placeholder="Notes (optional)" value={cardioForm.notes||""} onChange={e => setCardioForm(f => ({...f, notes: e.target.value}))} style={{ ...inputS, width: "100%", marginBottom: 10 }} />
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button onClick={() => { setShowCardioForm(false); setEditingCardio(null); setCardioForm({ type:"Running",duration:"",distance:"",calories:"",notes:"" }); }}
+                                style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+                              <button onClick={logCardio} style={{ flex: 2, padding: "11px", borderRadius: 12, border: "none", background: editingCardio ? C.orange : C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                                {editingCardio ? "Save Changes" : `Save ${cardioForm.type}`}
+                              </button>
                             </div>
                           </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
-                            {[
-                              {k:"duration", l:"Duration (min)", p:"30"},
-                              {k:"distance", l: cardioForm.type==="Indoor Rowing" ? "Distance (m)" : "Distance (mi)", p: cardioForm.type==="Indoor Rowing" ? "2000" : "3.1"},
-                              {k:"calories", l:"Calories", p:"300"},
-                            ].map(f => (
-                              <div key={f.k}>
-                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{f.l}</label>
-                                <input type="number" placeholder={f.p} value={cardioForm[f.k]} onChange={e => setCardioForm(cf => ({...cf, [f.k]: e.target.value}))} style={inputS} />
-                              </div>
+                        );
+                      })()}
+                      {/* Cardio type picker (shown when type is blank) */}
+                      {showCardioForm && !cardioForm.type && (
+                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14 }}>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 10 }}>Select Activity Type</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                            {CARDIO_TYPES.map(t => (
+                              <button key={t} onClick={() => setCardioForm(f=>({...f, type:t}))}
+                                style={{ padding: "9px 14px", borderRadius: 99, border: `2px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                                {CARDIO_META[t].icon} {t}
+                              </button>
                             ))}
-                          </div>
-                          {(cardioForm.type === "Indoor Rowing") && (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                              <div>
-                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>Split (/500m)</label>
-                                <input placeholder="2:00" value={cardioForm.split||""} onChange={e => setCardioForm(f=>({...f,split:e.target.value}))} style={inputS} />
-                              </div>
-                              <div>
-                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>Avg SPM</label>
-                                <input type="number" placeholder="24" value={cardioForm.spm||""} onChange={e => setCardioForm(f=>({...f,spm:e.target.value}))} style={inputS} />
-                              </div>
-                            </div>
-                          )}
-                          {(cardioForm.type === "Cycling - Indoor" || cardioForm.type === "Cycling - Outdoor" || cardioForm.type === "Mountain Biking") && (
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                              <div>
-                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>Avg Speed (mph)</label>
-                                <input type="number" placeholder="15" value={cardioForm.speed||""} onChange={e => setCardioForm(f=>({...f,speed:e.target.value}))} style={inputS} />
-                              </div>
-                              <div>
-                                <label style={{ fontSize: 11, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{cardioForm.type==="Cycling - Indoor" ? "Avg Watts" : "Elevation (ft)"}</label>
-                                <input type="number" placeholder={cardioForm.type==="Cycling - Indoor"?"200":"500"} value={cardioForm.extra||""} onChange={e => setCardioForm(f=>({...f,extra:e.target.value}))} style={inputS} />
-                              </div>
-                            </div>
-                          )}
-                          <input placeholder="Notes (optional)" value={cardioForm.notes} onChange={e => setCardioForm(f => ({...f, notes: e.target.value}))} style={{ ...inputS, width: "100%", marginBottom: 10 }} />
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button onClick={() => { setShowCardioForm(false); setEditingCardio(null); setCardioForm({ type:"Running",duration:"",distance:"",calories:"",notes:"" }); }}
-                              style={{ flex: 1, padding: "11px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, color: C.textMid, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                            <button onClick={logCardio} style={{ flex: 2, padding: "11px", borderRadius: 12, border: "none", background: editingCardio ? C.orange : C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-                              {editingCardio ? "Save Changes" : "Save Cardio"}
-                            </button>
                           </div>
                         </div>
                       )}
@@ -1744,29 +1804,41 @@
                   {/* QUICK ADD SINGLE EXERCISE */}
                   {workoutTab === "quickadd" && (
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                         <button onClick={() => { setWorkoutTab("log"); setExerciseSearch(""); }} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "8px 14px", fontWeight: 700, fontSize: 13, color: C.textMid, cursor: "pointer", fontFamily: "inherit" }}>← Back</button>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Quick Add Exercise</div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Find Activity</div>
                       </div>
-                      <div style={{ background: C.purpleLight||"#f0ebff", borderRadius: 12, padding: 12, marginBottom: 14, border: `1px solid ${C.purple}22` }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: C.purple }}>💪 Adds a single exercise to today's workout — no need to start a full session</div>
+                      <div style={{ position: "relative", marginBottom: 12 }}>
+                        <div style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:15, pointerEvents:"none" }}>🔍</div>
+                        <input placeholder="Search cardio, strength, boxing..." value={exerciseSearch} onChange={e => setExerciseSearch(e.target.value)}
+                          style={{ ...inputStyle, paddingLeft: 38 }} autoFocus />
                       </div>
-                      <input placeholder="Search exercises..." value={exerciseSearch} onChange={e => setExerciseSearch(e.target.value)}
-                        style={{ ...inputStyle, marginBottom: 12 }} autoFocus />
-                      <div style={{ maxHeight: 480, overflowY: "auto" }}>
+                      <div style={{ maxHeight: 520, overflowY: "auto" }}>
                         {Object.entries(EXERCISES).map(([group, exs]) => {
                           const filtered = exs.filter(e => e.toLowerCase().includes(exerciseSearch.toLowerCase()));
                           if (filtered.length === 0) return null;
+                          const isCardioGroup = group === "Cardio";
                           return (
                             <div key={group} style={{ marginBottom: 12 }}>
-                              <div style={{ fontSize: 11, fontWeight: 800, color: C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, paddingLeft: 2 }}>{group}</div>
-                              {filtered.map(e => (
-                                <button key={e} onClick={() => addSingleExercise(e)}
-                                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", padding: "12px 14px", marginBottom: 6, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
-                                  <span>{e}</span>
-                                  <span style={{ color: C.purple, fontSize: 20, fontWeight: 300 }}>+</span>
-                                </button>
-                              ))}
+                              <div style={{ fontSize: 11, fontWeight: 800, color: isCardioGroup ? C.green : C.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, paddingLeft: 2, display:"flex", alignItems:"center", gap:6 }}>
+                                {isCardioGroup ? "🏃 " : ""}{group}
+                              </div>
+                              {filtered.map(e => {
+                                const isCardio = CARDIO_META[e];
+                                return (
+                                  <button key={e} onClick={() => addSingleExercise(e)}
+                                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", padding: "12px 14px", marginBottom: 6, borderRadius: 12, border: `1px solid ${C.border}`, background: C.card, color: C.text, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                                      {isCardio && <span style={{ fontSize:18 }}>{isCardio.icon}</span>}
+                                      <span>{e}</span>
+                                    </div>
+                                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                      {isCardio && <span style={{ fontSize:10, fontWeight:800, color:C.green, background:C.greenLight, padding:"2px 7px", borderRadius:99 }}>CARDIO</span>}
+                                      <span style={{ color: isCardio ? C.green : C.purple, fontSize: 20, fontWeight: 300 }}>+</span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
                           );
                         })}
