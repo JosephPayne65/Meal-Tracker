@@ -803,6 +803,9 @@
       const [fitToken, setFitToken] = useState(() => localStorage.getItem("mt-fit-token") || "");
       const [fitSteps, setFitSteps] = useState(null);
       const [fitSyncing, setFitSyncing] = useState(false);
+      const [fitHealth, setFitHealth] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("mt-fit-health") || "null"); } catch { return null; }
+      });
       const fitClientId = "675487262600-mrkuhk2sg3rc9i1jladv930uteoph9qb.apps.googleusercontent.com";
       const [goals, setGoals] = useState(emptyGoals);
       const [entries, setEntries] = useState({});
@@ -957,7 +960,13 @@
         if (!window.google) { showToast("Google not loaded yet, try again", "error"); return; }
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: fitClientId,
-          scope: "https://www.googleapis.com/auth/fitness.activity.read",
+          scope: [
+            "https://www.googleapis.com/auth/fitness.activity.read",
+            "https://www.googleapis.com/auth/fitness.sleep.read",
+            "https://www.googleapis.com/auth/fitness.heart_rate.read",
+            "https://www.googleapis.com/auth/fitness.body.read",
+            "https://www.googleapis.com/auth/fitness.location.read",
+          ].join(" "),
           callback: async (resp) => {
             if (resp.error) { showToast("Google Fit connection failed", "error"); return; }
             const token = resp.access_token;
@@ -965,7 +974,7 @@
             setFitConnected(true);
             localStorage.setItem("mt-fit-token", token);
             showToast("Google Fit connected! 🏃");
-            fetchFitSteps(token);
+            fetchAllFitData(token);
           },
         });
         client.requestAccessToken();
@@ -975,8 +984,137 @@
         setFitToken("");
         setFitConnected(false);
         setFitSteps(null);
+        setFitHealth(null);
         localStorage.removeItem("mt-fit-token");
+        localStorage.removeItem("mt-fit-health");
         showToast("Google Fit disconnected");
+      };
+
+      const fitAggregate = async (token, dataTypes, startMs, endMs, bucketMs) => {
+        const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            aggregateBy: dataTypes.map(d => ({ dataTypeName: d })),
+            bucketByTime: { durationMillis: bucketMs },
+            startTimeMillis: startMs,
+            endTimeMillis: endMs,
+          }),
+        });
+        if (res.status === 401) { disconnectGoogleFit(); showToast("Google Fit session expired — reconnect", "error"); return null; }
+        return res.json();
+      };
+
+      const fetchAllFitData = async (token) => {
+        const t = token || fitToken;
+        if (!t) return;
+        setFitSyncing(true);
+        try {
+          const now = Date.now();
+          const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+          const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0,0,0,0);
+          const DAY = 86400000;
+
+          // ── Steps (today) ───────────────────────────────────────────────────
+          const stepsData = await fitAggregate(t, ["com.google.step_count.delta"], startOfDay.getTime(), now, DAY);
+          let steps = 0;
+          (stepsData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => (pt.value || []).forEach(v => { steps += v.intVal || 0; }))));
+
+          // ── Calories burned (today) ─────────────────────────────────────────
+          const calData = await fitAggregate(t, ["com.google.calories.expended"], startOfDay.getTime(), now, DAY);
+          let calsBurned = 0;
+          (calData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => (pt.value || []).forEach(v => { calsBurned += v.fpVal || 0; }))));
+
+          // ── Distance (today) ────────────────────────────────────────────────
+          const distData = await fitAggregate(t, ["com.google.distance.delta"], startOfDay.getTime(), now, DAY);
+          let distMeters = 0;
+          (distData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => (pt.value || []).forEach(v => { distMeters += v.fpVal || 0; }))));
+
+          // ── Heart rate (today) ──────────────────────────────────────────────
+          const hrData = await fitAggregate(t, ["com.google.heart_rate.bpm"], startOfDay.getTime(), now, DAY);
+          let hrAvg = 0, hrMax = 0, hrCount = 0;
+          (hrData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => {
+            const avg = pt.value?.[0]?.fpVal || 0;
+            const max = pt.value?.[1]?.fpVal || 0;
+            if (avg > 0) { hrAvg += avg; hrCount++; }
+            if (max > hrMax) hrMax = max;
+          })));
+          if (hrCount > 0) hrAvg = Math.round(hrAvg / hrCount);
+
+          // ── Active minutes (today) ──────────────────────────────────────────
+          const activeData = await fitAggregate(t, ["com.google.active_minutes"], startOfDay.getTime(), now, DAY);
+          let activeMins = 0;
+          (activeData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => (pt.value || []).forEach(v => { activeMins += v.intVal || 0; }))));
+
+          // ── Sleep (last night — look back 24h from noon today) ──────────────
+          const sleepStart = new Date(); sleepStart.setHours(12,0,0,0); sleepStart.setDate(sleepStart.getDate() - 1);
+          const sleepEnd = new Date(); sleepEnd.setHours(12,0,0,0);
+          const sleepRes = await fetch("https://www.googleapis.com/fitness/v1/users/me/sessions?startTime=" +
+            new Date(sleepStart).toISOString() + "&endTime=" + new Date(sleepEnd).toISOString() +
+            "&activityType=72", { headers: { Authorization: "Bearer " + t } });
+          let sleepMins = 0, sleepSessions = [];
+          if (sleepRes.ok) {
+            const sleepJson = await sleepRes.json();
+            (sleepJson.session || []).forEach(s => {
+              const mins = Math.round((parseInt(s.endTimeMillis) - parseInt(s.startTimeMillis)) / 60000);
+              sleepMins += mins;
+              sleepSessions.push({ name: s.name || "Sleep", mins, start: parseInt(s.startTimeMillis), end: parseInt(s.endTimeMillis) });
+            });
+          }
+
+          // ── Weekly steps ────────────────────────────────────────────────────
+          const weekStepsData = await fitAggregate(t, ["com.google.step_count.delta"], startOfWeek.getTime(), now, DAY);
+          const weeklySteps = {};
+          (weekStepsData?.bucket || []).forEach(b => {
+            const day = new Date(parseInt(b.startTimeMillis)).toLocaleDateString("en-US",{weekday:"short"});
+            let s = 0; (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => (pt.value || []).forEach(v => { s += v.intVal || 0; })));
+            if (s > 0) weeklySteps[day] = s;
+          });
+
+          // ── Resting heart rate (last 7 days best estimate) ──────────────────
+          const rhrData = await fitAggregate(t, ["com.google.heart_rate.bpm"], startOfWeek.getTime(), now, DAY * 7);
+          let rhr = 0;
+          (rhrData?.bucket || []).forEach(b => (b.dataset || []).forEach(ds => (ds.point || []).forEach(pt => {
+            const min = pt.value?.[2]?.fpVal || 0;
+            if (min > 0 && (rhr === 0 || min < rhr)) rhr = Math.round(min);
+          })));
+
+          const health = {
+            steps, calsBurned: Math.round(calsBurned),
+            distMiles: Math.round(distMeters * 0.000621371 * 100) / 100,
+            hrAvg, hrMax: Math.round(hrMax), rhr,
+            activeMins, sleepMins, sleepSessions,
+            weeklySteps, lastSynced: now,
+          };
+
+          setFitSteps(steps);
+          setFitHealth(health);
+          localStorage.setItem("mt-fit-health", JSON.stringify(health));
+          showToast("Health data synced! 💪");
+        } catch (e) {
+          console.error("Fit sync error:", e);
+          showToast("Sync failed — check connection", "error");
+        }
+        setFitSyncing(false);
+      };
+
+      // Keep fetchFitSteps for backward compat (challenge sync uses it)
+      const fetchFitSteps = async (token, challengeStartMs) => {
+        if (!challengeStartMs) { fetchAllFitData(token); return; }
+        const t = token || fitToken;
+        if (!t) return 0;
+        setFitSyncing(true);
+        try {
+          const now = Date.now();
+          const body = { aggregateBy:[{dataTypeName:"com.google.step_count.delta"}], bucketByTime:{durationMillis:86400000}, startTimeMillis:challengeStartMs, endTimeMillis:now };
+          const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", { method:"POST", headers:{Authorization:"Bearer "+t,"Content-Type":"application/json"}, body:JSON.stringify(body) });
+          if (res.status === 401) { disconnectGoogleFit(); showToast("Session expired — reconnect","error"); setFitSyncing(false); return 0; }
+          const data = await res.json();
+          let total = 0; const daily = {};
+          (data.bucket||[]).forEach(b => { const dk=new Date(parseInt(b.startTimeMillis)).toISOString().split("T")[0]; let s=0; (b.dataset||[]).forEach(ds=>(ds.point||[]).forEach(pt=>(pt.value||[]).forEach(v=>{s+=v.intVal||0;}))); if(s>0){daily[dk]=s;total+=s;} });
+          setFitSyncing(false);
+          return { total, daily };
+        } catch(e) { setFitSyncing(false); return 0; }
       };
 
       const fetchFitSteps = async (token, challengeStartMs) => {
@@ -1309,39 +1447,127 @@
                     ))}
                   </div>
 
-                  {/* Step Counter Card */}
+                  {/* Health Dashboard Card */}
                   {fitConnected && (
                     <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                        <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>👟 Steps Today</div>
-                        <button onClick={() => fetchFitSteps()}
-                          style={{ padding: "6px 14px", borderRadius: 10, border: "none", background: fitSyncing ? C.border : C.green, color: "#fff", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-                          {fitSyncing ? "..." : "↻ Sync"}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>🏥 Health Dashboard</div>
+                          {fitHealth?.lastSynced && <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>Last synced {new Date(fitHealth.lastSynced).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>}
+                        </div>
+                        <button onClick={() => fetchAllFitData()}
+                          style={{ padding: "7px 14px", borderRadius: 10, border: "none", background: fitSyncing ? C.border : C.green, color: "#fff", fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>
+                          {fitSyncing ? "⏳ Syncing..." : "↻ Sync All"}
                         </button>
                       </div>
-                      {fitSteps !== null ? (
-                        <div>
-                          <div style={{ fontSize: 42, fontWeight: 900, color: C.green, lineHeight: 1 }}>
-                            {fitSteps.toLocaleString()}
-                          </div>
-                          <div style={{ fontSize: 13, color: C.textLight, fontWeight: 600, marginTop: 4 }}>steps from Garmin today</div>
-                          {/* Step goal bar - 10k default */}
-                          <div style={{ marginTop: 10 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                              <span style={{ fontSize: 12, color: C.textLight, fontWeight: 700 }}>Daily goal</span>
-                              <span style={{ fontSize: 12, fontWeight: 800, color: fitSteps >= 10000 ? C.green : C.textMid }}>{Math.min(Math.round((fitSteps/10000)*100), 100)}%</span>
+
+                      {fitHealth ? (() => {
+                        const h = fitHealth;
+                        const sleepHrs = Math.floor(h.sleepMins / 60);
+                        const sleepMin = h.sleepMins % 60;
+                        const sleepLabel = h.sleepMins > 0 ? `${sleepHrs}h ${sleepMin}m` : "—";
+                        const sleepQuality = h.sleepMins >= 420 ? {label:"Great 😴", color:C.green} : h.sleepMins >= 360 ? {label:"Good 🙂", color:C.blue} : h.sleepMins >= 300 ? {label:"Fair 😐", color:C.orange} : h.sleepMins > 0 ? {label:"Low 😴", color:C.red} : {label:"No data", color:C.textLight};
+
+                        return (
+                          <div>
+                            {/* Top 4 stat grid */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                              {/* Steps */}
+                              <div style={{ background: C.greenLight, borderRadius: 14, padding: "12px 14px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: C.green, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>👟 Steps</div>
+                                <div style={{ fontSize: 29, fontWeight: 900, color: C.green, lineHeight: 1 }}>{h.steps.toLocaleString()}</div>
+                                <div style={{ height: 4, background: "rgba(52,201,126,0.25)", borderRadius: 99, marginTop: 8, overflow: "hidden" }}>
+                                  <div style={{ height: "100%", width: `${Math.min((h.steps/10000)*100,100)}%`, background: C.green, borderRadius: 99 }} />
+                                </div>
+                                <div style={{ fontSize: 11, color: C.green, marginTop: 3, fontWeight: 700 }}>{h.steps >= 10000 ? "🎉 Goal reached!" : `${(10000-h.steps).toLocaleString()} to 10k`}</div>
+                              </div>
+                              {/* Sleep */}
+                              <div style={{ background: "#f0ebff", borderRadius: 14, padding: "12px 14px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: C.purple, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>😴 Sleep</div>
+                                <div style={{ fontSize: 29, fontWeight: 900, color: C.purple, lineHeight: 1 }}>{sleepLabel}</div>
+                                <div style={{ fontSize: 11, marginTop: 8, fontWeight: 800, color: sleepQuality.color }}>{sleepQuality.label}</div>
+                                <div style={{ fontSize: 11, color: C.purple, opacity: 0.7 }}>Goal: 7–9h</div>
+                              </div>
+                              {/* Heart Rate */}
+                              <div style={{ background: "#fdecea", borderRadius: 14, padding: "12px 14px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: C.red, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>❤️ Heart Rate</div>
+                                <div style={{ fontSize: 29, fontWeight: 900, color: C.red, lineHeight: 1 }}>{h.hrAvg || "—"}<span style={{ fontSize: 13, fontWeight: 600 }}>{h.hrAvg ? " bpm" : ""}</span></div>
+                                <div style={{ fontSize: 11, color: C.red, marginTop: 8, fontWeight: 700 }}>
+                                  {h.hrMax ? `Max ${h.hrMax} bpm` : "avg today"}
+                                  {h.rhr ? ` · Resting ${h.rhr}` : ""}
+                                </div>
+                              </div>
+                              {/* Calories Burned */}
+                              <div style={{ background: C.orangeLight || "#fff3e0", borderRadius: 14, padding: "12px 14px" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: C.orange, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>🔥 Burned</div>
+                                <div style={{ fontSize: 29, fontWeight: 900, color: C.orange, lineHeight: 1 }}>{h.calsBurned.toLocaleString()}</div>
+                                <div style={{ fontSize: 11, color: C.orange, marginTop: 8, fontWeight: 700 }}>calories today</div>
+                                <div style={{ fontSize: 11, color: C.orange, opacity: 0.7 }}>{h.distMiles > 0 ? `${h.distMiles} mi moved` : "active today"}</div>
+                              </div>
                             </div>
-                            <div style={{ height: 7, background: C.border, borderRadius: 99, overflow: "hidden" }}>
-                              <div style={{ height: "100%", width: `${Math.min((fitSteps/10000)*100, 100)}%`, background: fitSteps >= 10000 ? C.green : C.blue, borderRadius: 99, transition: "width 0.5s ease" }} />
+
+                            {/* Active Minutes + Distance row */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+                              {[
+                                { label: "Active Mins", value: h.activeMins || "—", unit: "min", icon: "⚡", color: C.blue },
+                                { label: "Distance", value: h.distMiles > 0 ? h.distMiles : "—", unit: "mi", icon: "📍", color: C.green },
+                                { label: "Resting HR", value: h.rhr || "—", unit: "bpm", icon: "💗", color: C.red },
+                              ].map(s => (
+                                <div key={s.label} style={{ background: C.bg, borderRadius: 12, padding: "10px 12px", border: `1px solid ${C.border}` }}>
+                                  <div style={{ fontSize: 11, fontWeight: 800, color: C.textLight, marginBottom: 4 }}>{s.icon} {s.label}</div>
+                                  <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{s.value}</div>
+                                  <div style={{ fontSize: 11, color: C.textLight }}>{s.unit}</div>
+                                </div>
+                              ))}
                             </div>
-                            <div style={{ fontSize: 11, color: C.textLight, marginTop: 3 }}>{fitSteps >= 10000 ? "🎉 Goal reached!" : `${(10000 - fitSteps).toLocaleString()} steps to 10k`}</div>
+
+                            {/* Weekly Steps Bar Chart */}
+                            {Object.keys(h.weeklySteps || {}).length > 0 && (
+                              <div style={{ marginBottom: 14 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 10 }}>📊 Steps This Week</div>
+                                <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 70 }}>
+                                  {Object.entries(h.weeklySteps).map(([day, s]) => {
+                                    const maxS = Math.max(...Object.values(h.weeklySteps), 10000);
+                                    const ht = Math.max((s / maxS) * 62, 4);
+                                    return (
+                                      <div key={day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                                        <div style={{ fontSize: 10, color: C.textLight, fontWeight: 700 }}>{Math.round(s/1000*10)/10}k</div>
+                                        <div style={{ width: "100%", height: ht, borderRadius: "4px 4px 0 0", background: s >= 10000 ? C.green : C.blue }} />
+                                        <div style={{ fontSize: 10, fontWeight: 700, color: C.textLight }}>{day}</div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Sleep sessions */}
+                            {h.sleepSessions && h.sleepSessions.length > 0 && (
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 8 }}>😴 Last Night's Sleep</div>
+                                {h.sleepSessions.map((s, i) => {
+                                  const start = new Date(s.start).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+                                  const end = new Date(s.end).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+                                  const hrs = Math.floor(s.mins/60); const mins = s.mins%60;
+                                  return (
+                                    <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
+                                      <div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{start} → {end}</div>
+                                        <div style={{ fontSize: 11, color: C.textLight }}>{s.name}</div>
+                                      </div>
+                                      <div style={{ fontSize: 15, fontWeight: 800, color: C.purple }}>{hrs}h {mins}m</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ textAlign: "center", padding: "10px 0" }}>
-                          <div style={{ fontSize: 14, color: C.textLight, marginBottom: 8 }}>Tap sync to load today's steps</div>
-                          <button onClick={() => fetchFitSteps()} style={{ padding: "10px 20px", borderRadius: 12, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
-                            Load Steps
+                        );
+                      })() : (
+                        <div style={{ textAlign: "center", padding: "16px 0" }}>
+                          <div style={{ fontSize: 14, color: C.textLight, marginBottom: 12 }}>Tap sync to load your health data from Garmin</div>
+                          <button onClick={() => fetchAllFitData()} style={{ padding: "12px 24px", borderRadius: 12, border: "none", background: C.green, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+                            Load Health Data
                           </button>
                         </div>
                       )}
@@ -2420,7 +2646,7 @@
                         </div>
                         {fitConnected ? (
                           <div style={{display:"flex", gap:6}}>
-                            <button onClick={() => fetchFitSteps()}
+                            <button onClick={() => fetchAllFitData()}
                               style={{padding:"7px 12px", borderRadius:10, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit"}}>
                               {fitSyncing ? "..." : "↻"}
                             </button>
