@@ -29,6 +29,8 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
   </script>
+  <!-- Google Identity Services for Fit OAuth -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
@@ -794,6 +796,11 @@
       const [newChallenge, setNewChallenge] = useState({ type:"workout", goal:"", unit:"sessions", duration:7, name:"" });
       const [joinCode, setJoinCode] = useState("");
       const challengeListeners = useRef({});
+      const [fitConnected, setFitConnected] = useState(() => !!localStorage.getItem("mt-fit-token"));
+      const [fitToken, setFitToken] = useState(() => localStorage.getItem("mt-fit-token") || "");
+      const [fitSteps, setFitSteps] = useState(null);
+      const [fitSyncing, setFitSyncing] = useState(false);
+      const fitClientId = "675487262600-mrkuhk2sg3rc9i1jladv930uteoph9qb.apps.googleusercontent.com";
       const [goals, setGoals] = useState(emptyGoals);
       const [entries, setEntries] = useState({});
       const [form, setForm] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", meal: "Breakfast", qty: 1 });
@@ -934,6 +941,75 @@
         const ids = JSON.parse(localStorage.getItem("mt-challenge-ids") || "[]");
         localStorage.setItem("mt-challenge-ids", JSON.stringify(ids.filter(i => i !== id)));
         if (activeChallengeId === id) setActiveChallengeId(null);
+      };
+
+      // ── GOOGLE FIT ───────────────────────────────────────────────────────────
+      const connectGoogleFit = () => {
+        if (!window.google) { showToast("Google not loaded yet, try again", "error"); return; }
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: fitClientId,
+          scope: "https://www.googleapis.com/auth/fitness.activity.read",
+          callback: async (resp) => {
+            if (resp.error) { showToast("Google Fit connection failed", "error"); return; }
+            const token = resp.access_token;
+            setFitToken(token);
+            setFitConnected(true);
+            localStorage.setItem("mt-fit-token", token);
+            showToast("Google Fit connected! 🏃");
+            fetchFitSteps(token);
+          },
+        });
+        client.requestAccessToken();
+      };
+
+      const disconnectGoogleFit = () => {
+        setFitToken("");
+        setFitConnected(false);
+        setFitSteps(null);
+        localStorage.removeItem("mt-fit-token");
+        showToast("Google Fit disconnected");
+      };
+
+      const fetchFitSteps = async (token) => {
+        const t = token || fitToken;
+        if (!t) return;
+        setFitSyncing(true);
+        try {
+          const now = Date.now();
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+          const body = {
+            aggregateBy: [{ dataTypeName: "com.google.step_count.delta" }],
+            bucketByTime: { durationMillis: 86400000 },
+            startTimeMillis: startOfDay.getTime(),
+            endTimeMillis: now,
+          };
+          const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (res.status === 401) { disconnectGoogleFit(); showToast("Google Fit session expired — reconnect", "error"); return; }
+          const data = await res.json();
+          let steps = 0;
+          (data.bucket || []).forEach(b => {
+            (b.dataset || []).forEach(ds => {
+              (ds.point || []).forEach(pt => {
+                (pt.value || []).forEach(v => { steps += (v.intVal || 0); });
+              });
+            });
+          });
+          setFitSteps(steps);
+          showToast("Steps synced: " + steps.toLocaleString() + " today");
+        } catch (e) {
+          showToast("Sync failed — check connection", "error");
+        }
+        setFitSyncing(false);
+      };
+
+      const logFitStepsToChallenge = async (challengeId) => {
+        if (fitSteps === null) { await fetchFitSteps(); return; }
+        await logChallengeProgress(challengeId, fitSteps);
       };
 
       const showToast = (msg, type="success") => {
@@ -2189,9 +2265,40 @@
                   {/* BROWSE */}
                   {challengeTab === "browse" && (
                     <div>
-                      <div style={{fontSize:12, color:C.textLight, fontWeight:700, marginBottom:14}}>
+                      <div style={{fontSize:12, color:C.textLight, fontWeight:700, marginBottom:12}}>
                         Playing as <span style={{color:C.blue, fontWeight:800}}>{userName}</span>
                         <button onClick={() => saveUserName("")} style={{marginLeft:8, fontSize:11, color:C.textLight, background:"none", border:"none", cursor:"pointer", fontFamily:"inherit", textDecoration:"underline"}}>change</button>
+                      </div>
+
+                      {/* Google Fit connection status */}
+                      <div style={{background:fitConnected?C.greenLight:C.bg, borderRadius:14, border:`1px solid ${fitConnected?C.green:C.border}`, padding:"12px 16px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+                        <div>
+                          <div style={{fontSize:12, fontWeight:800, color:fitConnected?C.green:C.textMid}}>
+                            {fitConnected ? "✅ Google Fit Connected" : "📱 Google Fit Not Connected"}
+                          </div>
+                          <div style={{fontSize:11, color:C.textLight, marginTop:2}}>
+                            {fitConnected
+                              ? (fitSteps !== null ? fitSteps.toLocaleString() + " steps today from Garmin" : "Tap sync to load today's steps")
+                              : "Connect to auto-sync Garmin steps"}
+                          </div>
+                        </div>
+                        {fitConnected ? (
+                          <div style={{display:"flex", gap:6}}>
+                            <button onClick={() => fetchFitSteps()}
+                              style={{padding:"7px 12px", borderRadius:10, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit"}}>
+                              {fitSyncing ? "..." : "↻"}
+                            </button>
+                            <button onClick={disconnectGoogleFit}
+                              style={{padding:"7px 10px", borderRadius:10, border:`1px solid ${C.border}`, background:C.card, color:C.textLight, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit"}}>
+                              Disconnect
+                            </button>
+                          </div>
+                        ) : (
+                          <button onClick={connectGoogleFit}
+                            style={{padding:"9px 14px", borderRadius:10, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit"}}>
+                            Connect
+                          </button>
+                        )}
                       </div>
                       {myChallenges.length === 0 ? (
                         <div style={{textAlign:"center", padding:"40px 20px", color:C.textLight}}>
@@ -2293,13 +2400,49 @@
                                   {ch.type === "steps" && (() => {
                                     const sKey = "steps-"+ch.id;
                                     return (
-                                      <div style={{display:"flex", gap:8, flex:1}}>
-                                        <input type="number" placeholder="Steps" id={sKey}
-                                          style={{...inputStyle, flex:1, padding:"10px 12px"}} />
-                                        <button onClick={() => { const v=parseFloat(document.getElementById(sKey)?.value||0); if(v>0){logChallengeProgress(ch.id,v);document.getElementById(sKey).value="";} }}
-                                          style={{padding:"11px 16px", borderRadius:12, border:"none", background:C.purple, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
-                                          Log
-                                        </button>
+                                      <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                                        {fitConnected ? (
+                                          <div>
+                                            <div style={{background:C.greenLight, borderRadius:10, padding:"10px 14px", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+                                              <div>
+                                                <div style={{fontSize:11, fontWeight:800, color:C.green}}>🏃 Google Fit · Garmin Synced</div>
+                                                <div style={{fontSize:16, fontWeight:900, color:C.green}}>
+                                                  {fitSteps !== null ? fitSteps.toLocaleString() + " steps today" : "Tap sync to load"}
+                                                </div>
+                                              </div>
+                                              <button onClick={() => fetchFitSteps()}
+                                                style={{padding:"8px 12px", borderRadius:10, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit"}}>
+                                                {fitSyncing ? "..." : "↻ Sync"}
+                                              </button>
+                                            </div>
+                                            <div style={{display:"flex", gap:8}}>
+                                              <button onClick={() => logFitStepsToChallenge(ch.id)}
+                                                style={{flex:2, padding:"11px", borderRadius:12, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
+                                                + Log {fitSteps !== null ? fitSteps.toLocaleString() : "Today's"} Steps
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div>
+                                            <div style={{background:C.blueLight, borderRadius:10, padding:"10px 14px", marginBottom:8, fontSize:12, color:C.blue, fontWeight:700}}>
+                                              🔗 Connect Google Fit to auto-sync steps from your Garmin
+                                            </div>
+                                            <div style={{display:"flex", gap:8}}>
+                                              <button onClick={connectGoogleFit}
+                                                style={{flex:1, padding:"11px", borderRadius:12, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
+                                                Connect Google Fit
+                                              </button>
+                                            </div>
+                                            <div style={{display:"flex", gap:8, marginTop:8}}>
+                                              <input type="number" placeholder="Or enter steps manually" id={sKey}
+                                                style={{...inputStyle, flex:1, padding:"10px 12px"}} />
+                                              <button onClick={() => { const v=parseFloat(document.getElementById(sKey)?.value||0); if(v>0){logChallengeProgress(ch.id,v);document.getElementById(sKey).value="";} }}
+                                                style={{padding:"11px 16px", borderRadius:12, border:"none", background:C.purple, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
+                                                Log
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })()}
