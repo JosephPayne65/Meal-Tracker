@@ -820,6 +820,22 @@
       const [goalDraft, setGoalDraft] = useState(emptyGoals);
       const [selectedDate, setSelectedDate] = useState(todayKey());
       const [toast, setToast] = useState(null);
+      const [notifPermission, setNotifPermission] = useState(() => typeof Notification !== "undefined" ? Notification.permission : "default");
+      const [notifSettings, setNotifSettings] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("mt-notif-settings") || "null") || {
+          logFood: true, logFoodTime: "08:00",
+          workout: true, workoutTime: "07:00",
+          steps: true,
+          challenges: true,
+          sleep: true, sleepTime: "21:30",
+          weekly: true, weeklyDay: "0", weeklyTime: "09:00",
+        }; } catch { return {}; }
+      });
+      const [notifLog, setNotifLog] = useState(() => {
+        try { return JSON.parse(localStorage.getItem("mt-notif-log") || "[]"); } catch { return []; }
+      });
+      const [showNotifCenter, setShowNotifCenter] = useState(false);
+      const notifTimers = useRef([]);
       const [goalsSubTab, setGoalsSubTab] = useState("view");
       const [weightLog, setWeightLog] = useState({});
       const [weightEntry, setWeightEntry] = useState("");
@@ -865,6 +881,148 @@
       useEffect(() => {
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ goals, entries, workouts, routines, weightLog, bodyWeightUnit })); } catch {}
       }, [goals, entries, workouts, routines, weightLog, bodyWeightUnit]);
+
+      // ── NOTIFICATIONS ────────────────────────────────────────────────────────
+      const saveNotifSettings = (s) => {
+        setNotifSettings(s);
+        localStorage.setItem("mt-notif-settings", JSON.stringify(s));
+      };
+
+      const addNotifLog = (title, body) => {
+        const entry = { id: Date.now(), title, body, at: Date.now(), read: false };
+        setNotifLog(prev => {
+          const updated = [entry, ...prev].slice(0, 50);
+          localStorage.setItem("mt-notif-log", JSON.stringify(updated));
+          return updated;
+        });
+      };
+
+      const markAllRead = () => {
+        setNotifLog(prev => {
+          const updated = prev.map(n => ({ ...n, read: true }));
+          localStorage.setItem("mt-notif-log", JSON.stringify(updated));
+          return updated;
+        });
+      };
+
+      const clearNotifLog = () => {
+        setNotifLog([]);
+        localStorage.removeItem("mt-notif-log");
+      };
+
+      const fireNotif = (title, body, tag) => {
+        addNotifLog(title, body);
+        if (notifPermission === "granted") {
+          try {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification(title, { body, icon: "/icon-192.png", badge: "/icon-192.png", tag: tag || title, vibrate: [100, 50, 100] });
+            });
+          } catch(e) { console.log("Notif error:", e); }
+        }
+      };
+
+      const requestNotifPermission = async () => {
+        if (typeof Notification === "undefined") { showToast("Notifications not supported on this device", "error"); return; }
+        const result = await Notification.requestPermission();
+        setNotifPermission(result);
+        if (result === "granted") {
+          showToast("Notifications enabled! 🔔");
+          fireNotif("Macro Tracker", "You'll now get reminders and challenge updates!", "welcome");
+          scheduleAllNotifs();
+        } else {
+          showToast("Notifications blocked — enable in browser settings", "error");
+        }
+      };
+
+      const scheduleAllNotifs = () => {
+        notifTimers.current.forEach(clearTimeout);
+        notifTimers.current = [];
+        if (notifPermission !== "granted") return;
+        const s = notifSettings;
+        const now = new Date();
+
+        const scheduleDaily = (timeStr, callback) => {
+          const [h, m] = timeStr.split(":").map(Number);
+          const target = new Date();
+          target.setHours(h, m, 0, 0);
+          if (target <= now) target.setDate(target.getDate() + 1);
+          const ms = target - now;
+          const t = setTimeout(() => { callback(); scheduleDaily(timeStr, callback); }, ms);
+          notifTimers.current.push(t);
+        };
+
+        if (s.logFood) scheduleDaily(s.logFoodTime, () => {
+          const today = todayKey();
+          const todayEntries = entries[today] || [];
+          if (todayEntries.length === 0) fireNotif("🥗 Log your meals!", "You haven't logged any food today. Stay on track!", "food");
+        });
+
+        if (s.workout) scheduleDaily(s.workoutTime, () => {
+          const today = todayKey();
+          const todayWorkouts = workouts[today] || [];
+          if (todayWorkouts.length === 0) fireNotif("💪 Time to train!", "No workout logged yet today. Let's go!", "workout");
+        });
+
+        if (s.sleep) scheduleDaily(s.sleepTime, () => {
+          fireNotif("😴 Wind-down time", "Getting 7–9 hours of sleep helps recovery and weight management.", "sleep");
+        });
+
+        if (s.weekly) {
+          const scheduleWeekly = () => {
+            const [h, m] = s.weeklyTime.split(":").map(Number);
+            const target = new Date();
+            const targetDay = parseInt(s.weeklyDay);
+            target.setHours(h, m, 0, 0);
+            const daysUntil = (targetDay - now.getDay() + 7) % 7 || 7;
+            target.setDate(target.getDate() + daysUntil);
+            const ms = target - now;
+            const t = setTimeout(() => {
+              const last7 = Array.from({length:7}, (_, i) => { const d = new Date(); d.setDate(d.getDate()-i); return dateKey(d); });
+              const totalCal = last7.reduce((a,d) => a + (entries[d]||[]).reduce((s,e) => s+e.calories*e.qty, 0), 0);
+              const daysLogged = last7.filter(d => (entries[d]||[]).length > 0).length;
+              const daysWorked = last7.filter(d => (workouts[d]||[]).length > 0).length;
+              fireNotif("📊 Your Weekly Summary", `${daysLogged}/7 days logged · ${daysWorked} workouts · ${Math.round(totalCal/7)} avg cal/day`, "weekly");
+              scheduleWeekly();
+            }, ms);
+            notifTimers.current.push(t);
+          };
+          scheduleWeekly();
+        }
+      };
+
+      // Schedule notifications on mount and when settings change
+      useEffect(() => {
+        if (notifPermission === "granted") scheduleAllNotifs();
+        return () => notifTimers.current.forEach(clearTimeout);
+      }, [notifPermission, notifSettings]);
+
+      // Watch for step goals and challenge updates
+      useEffect(() => {
+        if (notifPermission !== "granted" || !notifSettings.steps || fitSteps === null) return;
+        if (fitSteps >= 10000) fireNotif("🎉 Step goal reached!", `You hit 10,000 steps today! Great work.`, "steps-10k");
+        else if (fitSteps >= 7500) fireNotif("👟 Almost there!", `${fitSteps.toLocaleString()} steps — only ${(10000-fitSteps).toLocaleString()} to go!`, "steps-75");
+        else if (fitSteps >= 5000) fireNotif("👟 Halfway to 10k!", `${fitSteps.toLocaleString()} steps so far today.`, "steps-50");
+      }, [fitSteps]);
+
+      useEffect(() => {
+        if (notifPermission !== "granted" || !notifSettings.challenges) return;
+        Object.values(challenges).forEach(ch => {
+          const players = Object.values(ch.players || {});
+          const opponent = players.find(p => p.name !== userName);
+          if (!opponent || !opponent.lastSynced) return;
+          const syncedRecently = Date.now() - opponent.lastSynced < 60000;
+          if (syncedRecently) {
+            const me = ch.players?.[userName];
+            const myProgress = me?.progress || 0;
+            const oppProgress = opponent.progress || 0;
+            if (oppProgress > myProgress) {
+              fireNotif(`😤 ${opponent.name} is ahead!`, `They have ${oppProgress.toLocaleString()} vs your ${myProgress.toLocaleString()} in "${ch.name}". Time to sync!`, "challenge-" + ch.id);
+            } else {
+              fireNotif(`💪 ${opponent.name} logged progress`, `They're at ${oppProgress.toLocaleString()} in "${ch.name}". You're still leading!`, "challenge-" + ch.id);
+            }
+          }
+        });
+      }, [challenges]);
 
       // Load user's challenge IDs from localStorage and subscribe to each
       useEffect(() => {
@@ -1278,6 +1436,93 @@
             </div>
           )}
 
+          {/* Notification Center Panel */}
+          {showNotifCenter && (
+            <div style={{ position: "fixed", top: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, height: "100vh", background: C.bg, zIndex: 998, display: "flex", flexDirection: "column", animation: "slideDown 0.2s ease" }}>
+              <div style={{ background: C.blue, padding: "20px 20px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "#fff" }}>🔔 Notifications</div>
+                <button onClick={() => setShowNotifCenter(false)} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 36, height: 36, borderRadius: 99, fontSize: 20, cursor: "pointer", fontFamily: "inherit" }}>×</button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+
+                {/* Permission banner */}
+                {notifPermission !== "granted" && (
+                  <div style={{ background: C.orangeLight, border: `1px solid ${C.orange}44`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: C.orange, marginBottom: 6 }}>🔔 Enable Push Notifications</div>
+                    <div style={{ fontSize: 13, color: C.textMid, marginBottom: 12 }}>Get reminders, step goal alerts, and real-time challenge updates even when the app is in the background.</div>
+                    <button onClick={requestNotifPermission} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: C.orange, color: "#fff", fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit" }}>
+                      Enable Notifications
+                    </button>
+                  </div>
+                )}
+
+                {/* Notification settings */}
+                <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16, marginBottom: 16 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: C.text, marginBottom: 14 }}>⚙️ Settings</div>
+                  {[
+                    { key: "logFood", label: "🥗 Daily food reminder", timeKey: "logFoodTime" },
+                    { key: "workout", label: "💪 Workout reminder", timeKey: "workoutTime" },
+                    { key: "sleep", label: "😴 Sleep reminder", timeKey: "sleepTime" },
+                    { key: "steps", label: "👟 Step goal alerts", timeKey: null },
+                    { key: "challenges", label: "🏆 Challenge updates", timeKey: null },
+                    { key: "weekly", label: "📊 Weekly summary", timeKey: "weeklyTime" },
+                  ].map(item => (
+                    <div key={item.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</div>
+                        {item.timeKey && notifSettings[item.key] && (
+                          <input type="time" value={notifSettings[item.timeKey]}
+                            onChange={e => saveNotifSettings({ ...notifSettings, [item.timeKey]: e.target.value })}
+                            style={{ marginTop: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }} />
+                        )}
+                        {item.key === "weekly" && notifSettings.weekly && (
+                          <select value={notifSettings.weeklyDay}
+                            onChange={e => saveNotifSettings({ ...notifSettings, weeklyDay: e.target.value })}
+                            style={{ marginTop: 6, marginLeft: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }}>
+                            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i) => <option key={i} value={i}>{d}</option>)}
+                          </select>
+                        )}
+                      </div>
+                      <button onClick={() => saveNotifSettings({ ...notifSettings, [item.key]: !notifSettings[item.key] })}
+                        style={{ width: 48, height: 26, borderRadius: 99, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s",
+                          background: notifSettings[item.key] ? C.green : C.border,
+                          position: "relative", flexShrink: 0, marginLeft: 12 }}>
+                        <div style={{ width: 20, height: 20, borderRadius: 99, background: "#fff", position: "absolute", top: 3, transition: "left 0.2s",
+                          left: notifSettings[item.key] ? 25 : 3 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Notification log */}
+                <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}`, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>Recent</div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={markAllRead} style={{ fontSize: 12, color: C.green, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Mark all read</button>
+                      <button onClick={clearNotifLog} style={{ fontSize: 12, color: C.textLight, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>Clear</button>
+                    </div>
+                  </div>
+                  {notifLog.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "24px 0", color: C.textLight, fontSize: 14 }}>No notifications yet</div>
+                  ) : notifLog.map(n => (
+                    <div key={n.id} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${C.border}`, opacity: n.read ? 0.6 : 1 }}>
+                      {!n.read && <div style={{ width: 8, height: 8, borderRadius: 99, background: C.green, flexShrink: 0, marginTop: 5 }} />}
+                      {n.read && <div style={{ width: 8, flexShrink: 0 }} />}
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{n.title}</div>
+                        <div style={{ fontSize: 13, color: C.textMid, marginTop: 2 }}>{n.body}</div>
+                        <div style={{ fontSize: 11, color: C.textLight, marginTop: 4 }}>
+                          {new Date(n.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Header */}
           <div style={{ background: C.blue, padding: "20px 20px 0" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: tab === "dash" ? 16 : 12 }}>
@@ -1292,6 +1537,16 @@
                     <div style={{ fontSize: 23, fontWeight: 900, color: caloriesLeft < 0 ? "#ffcdd2" : "#fff" }}>{Math.abs(Math.round(caloriesLeft))} cal</div>
                   </div>
                 )}
+                {/* Notification Bell */}
+                <button onClick={() => { setShowNotifCenter(true); markAllRead(); }}
+                  style={{ position: "relative", background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 38, height: 38, borderRadius: 99, fontSize: 18, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  🔔
+                  {notifLog.filter(n => !n.read).length > 0 && (
+                    <div style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: 99, background: C.red, fontSize: 10, fontWeight: 900, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {notifLog.filter(n => !n.read).length > 9 ? "9+" : notifLog.filter(n => !n.read).length}
+                    </div>
+                  )}
+                </button>
                 <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                   style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 10, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} />
               </div>
