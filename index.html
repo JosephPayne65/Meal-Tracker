@@ -1031,6 +1031,7 @@
         if (!ch) { showToast("Challenge not found", "error"); return; }
         if (!fitToken) { connectGoogleFit(); return; }
         setFitSyncing(true);
+        console.log("Syncing challenge:", challengeId, "createdAt:", ch.createdAt, "userName:", userName);
         try {
           const now = Date.now();
           const body = {
@@ -1039,11 +1040,13 @@
             startTimeMillis: ch.createdAt,
             endTimeMillis: now,
           };
+          console.log("Fetching Fit data from", new Date(ch.createdAt).toLocaleDateString(), "to now");
           const res = await fetch("https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate", {
             method: "POST",
             headers: { Authorization: "Bearer " + fitToken, "Content-Type": "application/json" },
             body: JSON.stringify(body),
           });
+          console.log("Fit API status:", res.status);
           if (res.status === 401) {
             disconnectGoogleFit();
             showToast("Google Fit session expired — reconnect", "error");
@@ -1051,6 +1054,7 @@
             return;
           }
           const data = await res.json();
+          console.log("Fit API response:", JSON.stringify(data).slice(0, 500));
           let totalSteps = 0;
           const dailyBreakdown = {};
           (data.bucket || []).forEach(b => {
@@ -1066,15 +1070,20 @@
               totalSteps += daySteps;
             }
           });
+          console.log("Total steps calculated:", totalSteps, "daily:", dailyBreakdown);
           // Always write — even if 0, overwrite any stale manual entry
-          await db.ref("challenges/" + challengeId + "/players/" + userName).update({
+          const writeRef = "challenges/" + challengeId + "/players/" + userName;
+          console.log("Writing to Firebase:", writeRef, "progress:", totalSteps);
+          await db.ref(writeRef).update({
             progress: totalSteps,
             dailySteps: dailyBreakdown,
             lastSynced: Date.now(),
           });
+          console.log("Firebase write complete");
           setFitSteps(totalSteps);
           showToast("Synced " + totalSteps.toLocaleString() + " steps! 🏃");
         } catch (e) {
+          console.error("Sync error:", e);
           showToast("Sync failed — try reconnecting Google Fit", "error");
         }
         setFitSyncing(false);
