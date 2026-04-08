@@ -2,13 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Macro Tracker</title>
   <link rel="manifest" href="/manifest.json" />
+  <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Macros" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <!-- Android / Chrome PWA -->
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#1f3a22" />
+  <!-- Prevent text size adjust on rotation -->
+  <meta name="format-detection" content="telephone=no" />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -34,34 +40,80 @@
   <!-- Google Identity Services for Fit OAuth -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html {
       font-size: 17px;
+      height: 100%;
+      /* Prevent bounce/rubber-band on iOS */
+      overscroll-behavior: none;
     }
     html, body {
-      background: #f4f7f2;
+      background: #1f3a22;
       color: #1a2e1e;
       font-family: 'Nunito', 'Segoe UI', sans-serif;
-      min-height: 100vh;
+      min-height: 100%;
+      min-height: -webkit-fill-available;
+      /* Prevent text size adjust on orientation change */
+      -webkit-text-size-adjust: 100%;
+    }
+    /* Safe area insets for notch/home bar */
+    #root {
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+    /* Momentum scrolling on iOS */
+    .scroll-area {
+      -webkit-overflow-scrolling: touch;
+      overflow-y: auto;
     }
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
     input[type="date"]::-webkit-calendar-picker-indicator { filter: none; opacity: 0.5; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: #f4f7f2; }
-    ::-webkit-scrollbar-thumb { background: #c4d4c4; border-radius: 99px; }
+    ::-webkit-scrollbar { width: 0; }
     input:focus { outline: none; border-color: #2e6b3a !important; box-shadow: 0 0 0 3px rgba(46,107,58,0.12); }
-    button:active { transform: scale(0.97); }
+    /* Native button press feel */
+    button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    button:active { transform: scale(0.96); transition: transform 0.1s ease; }
+    /* Tab transitions */
+    .tab-content { animation: tabIn 0.18s ease; }
+    @keyframes tabIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes slideUp { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:translateY(0);} }
     @keyframes slideDown { from { opacity:0; transform:translateY(-8px);} to { opacity:1; transform:translateY(0);} }
     @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+    /* Bottom tab bar safe area */
+    .tab-bar {
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+    }
+    /* Prevent selection on long press */
+    .no-select { -webkit-user-select: none; user-select: none; }
   </style>
 </head>
 <body>
   <div id="root"></div>
+  <div id="splash" style="position:fixed;inset:0;background:#1f3a22;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;transition:opacity 0.4s ease;">
+    <div style="font-size:56px;margin-bottom:16px;">🌿</div>
+    <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:1px;">Macro Tracker</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);margin-top:8px;">Loading...</div>
+  </div>
+  <script>
+    // Hide splash once React renders
+    window.addEventListener("load", () => {
+      setTimeout(() => {
+        const splash = document.getElementById("splash");
+        if (splash) { splash.style.opacity = "0"; setTimeout(() => splash.remove(), 400); }
+      }, 600);
+    });
+  </script>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
     const STORAGE_KEY = "macro-tracker-data-v2";
+
+    // Handle ?tab= URL shortcuts from manifest
+    const urlParams = new URLSearchParams(window.location.search);
+    const initialTab = urlParams.get("tab") || "dash";
 
     const PRESET_FOODS = [
       // Chicken
@@ -895,7 +947,7 @@
     }
 
     function App() {
-      const [tab, setTab] = useState("dash");
+      const [tab, setTab] = useState(initialTab);
       const [googleUser, setGoogleUser] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
       const [challenges, setChallenges] = useState({});
@@ -1648,6 +1700,37 @@
         setTimeout(() => setToast(null), type === "error" ? 5000 : 2200);
       };
 
+      const haptic = (style="light") => {
+        if (!navigator.vibrate) return;
+        if (style === "light") navigator.vibrate(8);
+        else if (style === "medium") navigator.vibrate(20);
+        else if (style === "success") navigator.vibrate([10, 50, 10]);
+        else if (style === "error") navigator.vibrate([30, 20, 30]);
+      };
+
+      // PWA install prompt
+      const [installPrompt, setInstallPrompt] = React.useState(null);
+      const [showInstallBanner, setShowInstallBanner] = React.useState(false);
+      useEffect(() => {
+        const handler = (e) => {
+          e.preventDefault();
+          setInstallPrompt(e);
+          const dismissed = localStorage.getItem("mt-install-dismissed");
+          if (!dismissed) setShowInstallBanner(true);
+        };
+        window.addEventListener("beforeinstallprompt", handler);
+        return () => window.removeEventListener("beforeinstallprompt", handler);
+      }, []);
+
+      const handleInstall = async () => {
+        if (!installPrompt) return;
+        installPrompt.prompt();
+        const { outcome } = await installPrompt.userChoice;
+        if (outcome === "accepted") { showToast("App installed! 🎉"); haptic("success"); }
+        setShowInstallBanner(false);
+        setInstallPrompt(null);
+      };
+
       const dayEntries = entries[selectedDate] || [];
       const totals = dayEntries.reduce(
         (acc, e) => ({ calories: acc.calories + e.calories * e.qty, protein: acc.protein + e.protein * e.qty, carbs: acc.carbs + e.carbs * e.qty, fat: acc.fat + e.fat * e.qty }),
@@ -1681,6 +1764,7 @@
         setSearchQuery("");
         setShowPresets(false);
         showToast(`Added ${entryName}`);
+        haptic("success");
         setTab("log");
       };
 
@@ -1712,7 +1796,7 @@
       };
 
       return (
-        <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", paddingBottom: 80 }}>
+        <div style={{ minHeight: "100dvh", background: C.bg, display: "flex", flexDirection: "column", maxWidth: 480, margin: "0 auto", paddingBottom: "calc(64px + env(safe-area-inset-bottom))" }}>
 
           {/* Toast */}
           {toast && (
@@ -1865,8 +1949,16 @@
             )}
           </div>
 
-          {/* Tab bar */}
-          <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, display: "flex", padding: "0 4px" }}>
+          {/* Tab bar — fixed bottom native style */}
+          <div className="tab-bar" style={{
+            position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+            width: "100%", maxWidth: 480,
+            background: "rgba(255,255,255,0.96)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
+            borderTop: `1px solid ${C.border}`,
+            display: "flex", zIndex: 100,
+          }}>
             {[
               ["dash",      "🏠", "Home"],
               ["log",       "📋", "Log"],
@@ -1874,25 +1966,48 @@
               ["challenge", "🏆", "Compete"],
               ["goals",     "🎯", "Goals"],
             ].map(([t, icon, label]) => (
-              <button key={t} onClick={() => setTab(t)} style={{
-                flex: 1, padding: "11px 2px", background: "none", border: "none",
-                borderBottom: tab === t ? `3px solid ${C.blue}` : "3px solid transparent",
+              <button key={t} onClick={() => {
+                if (navigator.vibrate) navigator.vibrate(8);
+                setTab(t);
+              }} style={{
+                flex: 1, padding: "10px 2px 8px", background: "none", border: "none",
                 color: tab === t ? C.blue : C.textLight,
-                fontWeight: 800, fontSize: 11, cursor: "pointer", display: "flex", flexDirection: "column",
-                alignItems: "center", gap: 2, transition: "color 0.2s", fontFamily: "inherit",
-                position: "relative",
+                fontWeight: 800, fontSize: 10, cursor: "pointer", display: "flex", flexDirection: "column",
+                alignItems: "center", gap: 3, fontFamily: "inherit", position: "relative",
+                transition: "color 0.15s ease",
               }}>
-                <span style={{ fontSize: 18 }}>{icon}</span>
+                <div style={{
+                  width: 44, height: 30, borderRadius: 12,
+                  background: tab === t ? C.blueLight : "transparent",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "background 0.15s ease",
+                }}>
+                  <span style={{ fontSize: 20 }}>{icon}</span>
+                </div>
                 {label}
                 {t === "challenge" && pendingInvites.length > 0 && (
-                  <div style={{ position: "absolute", top: 6, right: "calc(50% - 18px)", width: 8, height: 8, borderRadius: 99, background: C.red }} />
+                  <div style={{ position: "absolute", top: 8, left: "calc(50% + 8px)", width: 8, height: 8, borderRadius: 99, background: C.red }} />
                 )}
               </button>
             ))}
           </div>
 
+          {/* Install Banner */}
+          {showInstallBanner && (
+            <div style={{ background: C.blue, padding: "12px 16px", display: "flex", alignItems: "center", gap: 10, animation: "slideDown 0.3s ease" }}>
+              <div style={{ fontSize: 22 }}>📲</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Add to Home Screen</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>Install for the full app experience</div>
+              </div>
+              <button onClick={handleInstall} style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#fff", color: C.blue, fontWeight: 800, fontSize: 13, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>Install</button>
+              <button onClick={() => { setShowInstallBanner(false); localStorage.setItem("mt-install-dismissed","1"); }} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", fontSize: 20, cursor: "pointer", padding: 4, lineHeight: 1, fontFamily: "inherit" }}>×</button>
+            </div>
+          )}
+
           {/* Content */}
           <div style={{ flex: 1, padding: "16px 16px 20px" }}>
+            <div className="tab-content" key={tab}>
 
             {/* DASHBOARD TAB */}
             {tab === "dash" && (() => {
@@ -3839,6 +3954,7 @@
                 )}
               </div>
             )}
+            </div>{/* end tab-content */}
           </div>
         </div>
       );
