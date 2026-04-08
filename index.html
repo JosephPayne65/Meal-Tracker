@@ -797,6 +797,7 @@
       const [googleUser, setGoogleUser] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
       const [challenges, setChallenges] = useState({});
+      const [pendingInvites, setPendingInvites] = useState([]);
       const [challengeTab, setChallengeTab] = useState("browse");
       const [newChallenge, setNewChallenge] = useState({ type:"workout", goal:"", unit:"sessions", duration:7, customDuration:"", name:"" });
       const [inviteEmail, setInviteEmail] = useState("");
@@ -1034,12 +1035,27 @@
           setGoogleUser(user);
           setAuthLoading(false);
           if (user) {
-            // Subscribe to all challenges where this user is a player
             const uid = user.uid;
+            // Subscribe to challenges this user is in
             const ref = db.ref("userChallenges/" + uid);
             ref.on("value", snap => {
               const ids = snap.val() ? Object.keys(snap.val()) : [];
               ids.forEach(id => subscribeToChallenge(id));
+            });
+            // Listen for pending invites by email
+            const emailKey = (user.email || "").replace(/\./g, ",");
+            const inviteRef = db.ref("challengeInvites/" + emailKey);
+            inviteRef.on("value", snap => {
+              const data = snap.val();
+              if (data) {
+                const invites = Object.entries(data).map(([id, v]) => ({ id, ...v }));
+                setPendingInvites(invites);
+                if (invites.length > 0) {
+                  fireNotif("🏆 Challenge invite!", `${invites[0].from} challenged you: "${invites[0].name}"`, "invite");
+                }
+              } else {
+                setPendingInvites([]);
+              }
             });
           }
         });
@@ -1696,9 +1712,9 @@
                 <button onClick={() => { setShowNotifCenter(true); markAllRead(); }}
                   style={{ position: "relative", background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 38, height: 38, borderRadius: 99, fontSize: 18, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   🔔
-                  {notifLog.filter(n => !n.read).length > 0 && (
+                  {(notifLog.filter(n => !n.read).length + pendingInvites.length) > 0 && (
                     <div style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: 99, background: C.red, fontSize: 10, fontWeight: 900, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {notifLog.filter(n => !n.read).length > 9 ? "9+" : notifLog.filter(n => !n.read).length}
+                      {(notifLog.filter(n => !n.read).length + pendingInvites.length) > 9 ? "9+" : notifLog.filter(n => !n.read).length + pendingInvites.length}
                     </div>
                   )}
                 </button>
@@ -2956,7 +2972,6 @@
               ];
               const now = Date.now();
               const myChallenges = Object.values(challenges);
-              const pendingInvites = []; // loaded via Firebase listener below
 
               // Not signed in
               if (authLoading) return (
@@ -3029,6 +3044,33 @@
                   {/* BROWSE */}
                   {challengeTab === "browse" && (
                     <div>
+                      {/* Pending invites */}
+                      {pendingInvites.length > 0 && (
+                        <div style={{marginBottom:14}}>
+                          <div style={{fontSize:14, fontWeight:800, color:C.text, marginBottom:10}}>📬 Pending Invites</div>
+                          {pendingInvites.map(inv => (
+                            <div key={inv.id} style={{background:C.card, borderRadius:14, border:`2px solid ${C.green}`, padding:14, marginBottom:10}}>
+                              <div style={{fontSize:15, fontWeight:900, color:C.text, marginBottom:4}}>🏆 {inv.name}</div>
+                              <div style={{fontSize:13, color:C.textMid, marginBottom:12}}>
+                                <strong>{inv.from}</strong> challenged you · {inv.type === "steps" ? "Most steps wins" : inv.type}
+                              </div>
+                              <div style={{display:"flex", gap:8}}>
+                                <button onClick={() => acceptInvite(inv.id, inv.challengeId)}
+                                  style={{flex:2, padding:"11px", borderRadius:12, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit"}}>
+                                  Accept 🎯
+                                </button>
+                                <button onClick={async () => {
+                                  const emailKey = userEmail.replace(/\./g,",");
+                                  await db.ref("challengeInvites/" + emailKey + "/" + inv.id).remove();
+                                }}
+                                  style={{flex:1, padding:"11px", borderRadius:12, border:`1px solid ${C.border}`, background:"transparent", color:C.textLight, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
+                                  Decline
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {myChallenges.length === 0 ? (
                         <div style={{textAlign:"center", padding:"40px 20px", color:C.textLight}}>
                           <div style={{fontSize:48, marginBottom:12}}>🥊</div>
