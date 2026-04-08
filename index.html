@@ -1048,25 +1048,12 @@
 
       const signInWithGoogle = async () => {
         try {
+          // Step 1 — Firebase Auth for identity (challenges, account)
           const provider = new firebase.auth.GoogleAuthProvider();
-          provider.addScope("https://www.googleapis.com/auth/fitness.activity.read");
-          provider.addScope("https://www.googleapis.com/auth/fitness.sleep.read");
-          provider.addScope("https://www.googleapis.com/auth/fitness.heart_rate.read");
-          provider.addScope("https://www.googleapis.com/auth/fitness.body.read");
-          provider.addScope("https://www.googleapis.com/auth/fitness.location.read");
           const result = await auth.signInWithPopup(provider);
-          const token = result.credential?.accessToken;
-          console.log("Sign in result:", result.user?.email, "token:", !!token);
-          if (token) {
-            setFitToken(token);
-            setFitConnected(true);
-            localStorage.setItem("mt-fit-token", token);
-            showToast("Signed in as " + result.user.displayName + " 👋");
-            fetchAllFitData(token);
-          } else {
-            // Signed in but no Fit token — still works for challenges
-            showToast("Signed in as " + result.user.displayName + " 👋");
-          }
+          showToast("Signed in as " + result.user.displayName + " 👋");
+          // Step 2 — separately request Fit scopes via GIS
+          setTimeout(() => connectGoogleFitScopes(), 1000);
         } catch(e) {
           console.error("Sign in error:", e.code, e.message);
           const msg = e.code === "auth/popup-blocked" ? "Popup blocked — allow popups for this site"
@@ -1076,6 +1063,30 @@
             : "Sign in failed: " + (e.code || e.message);
           showToast(msg, "error");
         }
+      };
+
+      const connectGoogleFitScopes = () => {
+        if (!window.google) { showToast("Google not loaded yet, try again", "error"); return; }
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: fitClientId,
+          scope: [
+            "https://www.googleapis.com/auth/fitness.activity.read",
+            "https://www.googleapis.com/auth/fitness.sleep.read",
+            "https://www.googleapis.com/auth/fitness.heart_rate.read",
+            "https://www.googleapis.com/auth/fitness.body.read",
+            "https://www.googleapis.com/auth/fitness.location.read",
+          ].join(" "),
+          callback: async (resp) => {
+            if (resp.error) { showToast("Google Fit connection failed", "error"); return; }
+            const token = resp.access_token;
+            setFitToken(token);
+            setFitConnected(true);
+            localStorage.setItem("mt-fit-token", token);
+            showToast("Google Fit connected! 🏃");
+            fetchAllFitData(token);
+          },
+        });
+        client.requestAccessToken();
       };
 
       const signOut = async () => {
@@ -1429,7 +1440,7 @@
       const syncFitStepsToChallenge = async (challengeId) => {
         const ch = challenges[challengeId];
         if (!ch) { showToast("Challenge not found", "error"); return; }
-        if (!fitToken) { connectGoogleFit(); return; }
+        if (!fitToken) { connectGoogleFitScopes(); return; }
         setFitSyncing(true);
         try {
           const now = Date.now();
@@ -2999,7 +3010,7 @@
                         <button onClick={disconnectGoogleFit} style={{padding:"7px 10px", borderRadius:10, border:"1px solid "+C.border, background:C.card, color:C.textLight, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit"}}>Disconnect</button>
                       </div>
                     ) : (
-                      <button onClick={signInWithGoogle} style={{padding:"9px 14px", borderRadius:10, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>Connect</button>
+                      <button onClick={connectGoogleFitScopes} style={{padding:"9px 14px", borderRadius:10, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>Connect Fit</button>
                     )}
                   </div>
 
@@ -3134,7 +3145,7 @@
                                       ) : (
                                         <div>
                                           <div style={{background:C.blueLight, borderRadius:10, padding:"10px 14px", marginBottom:8, fontSize:13, color:C.blue, fontWeight:700}}>Connect Google Fit to auto-sync Garmin steps</div>
-                                          <button onClick={signInWithGoogle} style={{width:"100%", padding:"11px", borderRadius:12, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit", marginBottom:8}}>Connect Google Fit</button>
+                                          <button onClick={connectGoogleFitScopes} style={{width:"100%", padding:"11px", borderRadius:12, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit", marginBottom:8}}>Connect Google Fit</button>
                                         </div>
                                       )}
                                     </div>
@@ -3227,7 +3238,7 @@
                       {!fitConnected && (
                         <div style={{background:C.blueLight, borderRadius:14, padding:16, marginBottom:14}}>
                           <div style={{fontSize:14, fontWeight:800, color:C.blue, marginBottom:8}}>Connect Google Fit to import Garmin activities</div>
-                          <button onClick={signInWithGoogle} style={{width:"100%", padding:"12px", borderRadius:12, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit"}}>Connect Google Fit</button>
+                          <button onClick={connectGoogleFitScopes} style={{width:"100%", padding:"12px", borderRadius:12, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer", fontFamily:"inherit"}}>Connect Google Fit</button>
                         </div>
                       )}
                       {garminActivities.length === 0 && fitConnected && (
