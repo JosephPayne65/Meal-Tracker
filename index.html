@@ -863,25 +863,25 @@
     };
     const emptyGoals = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
 
-    const C = {
-      blue: "#2e6b3a",
-      blueDark: "#1f4a28",
-      blueLight: "#e8f3e8",
-      green: "#2e6b3a",
-      greenLight: "#e8f3e8",
-      orange: "#c9883a",
-      orangeLight: "#f5ede0",
-      red: "#b84040",
-      redLight: "#f5e8e8",
-      purple: "#5a6ab0",
-      purpleLight: "#eaecf8",
-      bg: "#f4f7f2",
-      card: "#ffffff",
-      border: "#ddeadd",
-      text: "#1a2e1e",
-      textMid: "#4a6a50",
-      textLight: "#7a9a7e",
+    const LIGHT = {
+      blue: "#2e6b3a", blueDark: "#1f4a28", blueLight: "#e8f3e8",
+      green: "#2e6b3a", greenLight: "#e8f3e8",
+      orange: "#c9883a", orangeLight: "#f5ede0",
+      red: "#b84040", redLight: "#f5e8e8",
+      purple: "#5a6ab0", purpleLight: "#eaecf8",
+      bg: "#f4f7f2", card: "#ffffff", border: "#ddeadd",
+      text: "#1a2e1e", textMid: "#4a6a50", textLight: "#7a9a7e",
     };
+    const DARK = {
+      blue: "#4aac5c", blueDark: "#2e7a40", blueLight: "#1a3020",
+      green: "#4aac5c", greenLight: "#1a3020",
+      orange: "#d4944a", orangeLight: "#2a1e0a",
+      red: "#d45555", redLight: "#2a1010",
+      purple: "#7a8acc", purpleLight: "#1a1e30",
+      bg: "#0f1a12", card: "#1a2e1e", border: "#2a4030",
+      text: "#e8f3e8", textMid: "#9abaa0", textLight: "#5a7a60",
+    };
+    const C = darkMode ? DARK : LIGHT;
 
     const inputStyle = {
       width: "100%", background: "#f0f5f0", border: `1.5px solid ${C.border}`,
@@ -979,6 +979,20 @@
       const [goalDraft, setGoalDraft] = useState(emptyGoals);
       const [selectedDate, setSelectedDate] = useState(todayKey());
       const [toast, setToast] = useState(null);
+      // Custom foods
+      const [customFoods, setCustomFoods] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-custom-foods") || "[]"); } catch { return []; } });
+      const [showCustomFoodForm, setShowCustomFoodForm] = useState(false);
+      const [customFoodForm, setCustomFoodForm] = useState({ name:"", calories:"", protein:"", carbs:"", fat:"", serving:"" });
+      // Dark mode
+      const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mt-dark-mode") === "true");
+      // Workout planner show state
+      const [showPlanner, setShowPlanner] = useState(false);
+      const [plannerInput, setPlannerInput] = useState("");
+      const [plannerDate, setPlannerDate] = useState(todayKey());
+      // Challenge history tab
+      const [challengeHistoryTab, setChallengeHistoryTab] = useState("active");
+      // PR notifications tracking
+      const [prNotified, setPrNotified] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-pr-notified") || "{}"); } catch { return {}; } });
       // Water tracking
       const [waterLog, setWaterLog] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-water") || "{}"); } catch { return {}; } });
       const [waterGoal] = useState(64); // oz
@@ -1008,6 +1022,7 @@
           challenges: true,
           sleep: true, sleepTime: "21:30",
           weekly: true, weeklyDay: "0", weeklyTime: "09:00",
+          water: true, waterTime1: "10:00", waterTime2: "13:00", waterTime3: "16:00", waterTime4: "19:00",
         }; } catch { return {}; }
       });
       const [notifLog, setNotifLog] = useState(() => {
@@ -1145,6 +1160,25 @@
         if (s.sleep) scheduleDaily(s.sleepTime, () => {
           fireNotif("😴 Wind-down time", "Getting 7–9 hours of sleep helps recovery and weight management.", "sleep");
         });
+
+        if (s.water) {
+          const waterTimes = [s.waterTime1, s.waterTime2, s.waterTime3, s.waterTime4].filter(Boolean);
+          waterTimes.forEach((timeStr, idx) => {
+            scheduleDaily(timeStr, () => {
+              const oz = waterLog[todayKey()] || 0;
+              if (oz < waterGoal) {
+                const remaining = waterGoal - oz;
+                const messages = [
+                  `You've had ${oz}oz so far — ${remaining}oz to go! 💧`,
+                  `Hydration check! ${oz}oz down, ${remaining}oz left for today`,
+                  `Keep it up! ${remaining}oz more to hit your ${waterGoal}oz goal`,
+                  `Almost there — just ${remaining}oz left today! 💧`,
+                ];
+                fireNotif("💧 Drink Water!", messages[idx % messages.length], "water-" + idx);
+              }
+            });
+          });
+        }
 
         if (s.weekly) {
           const scheduleWeekly = () => {
@@ -1378,11 +1412,38 @@
       };
 
       const leaveChallenge = async (id) => {
+        // Save to history before leaving
+        const ch = challenges[id];
+        if (ch) {
+          const players = Object.values(ch.players || {});
+          const me = ch.players?.[userId];
+          const opponent = players.find(p => p.uid !== userId && p.email !== userEmail);
+          const myProgress = me?.progress || 0;
+          const oppProgress = opponent?.progress || 0;
+          const result = myProgress > oppProgress ? "win" : myProgress < oppProgress ? "loss" : "tie";
+          const historyEntry = {
+            id, name: ch.name, type: ch.type,
+            myProgress, oppProgress,
+            opponentName: opponent?.name || "Opponent",
+            result, endedAt: Date.now(),
+            duration: ch.duration,
+          };
+          const updated = [historyEntry, ...challengeHistory].slice(0, 50);
+          setChallengeHistory(updated);
+          localStorage.setItem("mt-challenge-history", JSON.stringify(updated));
+        }
         if (challengeListeners.current[id]) { challengeListeners.current[id](); delete challengeListeners.current[id]; }
         setChallenges(prev => { const n = {...prev}; delete n[id]; return n; });
         await db.ref("userChallenges/" + userId + "/" + id).remove();
         const ids = JSON.parse(localStorage.getItem("mt-challenge-ids") || "[]");
         localStorage.setItem("mt-challenge-ids", JSON.stringify(ids.filter(i => i !== id)));
+      };
+
+      const rematch = async (historyEntry) => {
+        // Create a new challenge of the same type and invite the same opponent
+        setNewChallenge({ type: historyEntry.type, goal:"", unit: historyEntry.type, duration: historyEntry.duration, customDuration:"", name: historyEntry.name + " (Rematch)" });
+        setChallengeTab("create");
+        showToast("Rematch setup ready — fill in opponent email and create! 🔄");
       };
 
       // ── GARMIN ACTIVITY IMPORT ───────────────────────────────────────────────
@@ -1730,6 +1791,42 @@
         else if (style === "error") navigator.vibrate([30, 20, 30]);
       };
 
+      const toggleDarkMode = () => {
+        const next = !darkMode;
+        setDarkMode(next);
+        localStorage.setItem("mt-dark-mode", String(next));
+        haptic("light");
+      };
+
+      // ── CUSTOM FOODS ─────────────────────────────────────────────────────────
+      const saveCustomFood = () => {
+        if (!customFoodForm.name || !customFoodForm.calories) return;
+        const food = {
+          name: customFoodForm.name.trim(),
+          calories: parseFloat(customFoodForm.calories) || 0,
+          protein: parseFloat(customFoodForm.protein) || 0,
+          carbs: parseFloat(customFoodForm.carbs) || 0,
+          fat: parseFloat(customFoodForm.fat) || 0,
+          serving: customFoodForm.serving || "1 serving",
+          custom: true,
+        };
+        const updated = [...customFoods, food];
+        setCustomFoods(updated);
+        localStorage.setItem("mt-custom-foods", JSON.stringify(updated));
+        setCustomFoodForm({ name:"", calories:"", protein:"", carbs:"", fat:"", serving:"" });
+        setShowCustomFoodForm(false);
+        showToast("Food saved: " + food.name + " 🍽️");
+        haptic("success");
+      };
+      const deleteCustomFood = (name) => {
+        const updated = customFoods.filter(f => f.name !== name);
+        setCustomFoods(updated);
+        localStorage.setItem("mt-custom-foods", JSON.stringify(updated));
+      };
+
+      // All foods = presets + custom
+      const ALL_FOODS = [...PRESET_FOODS, ...customFoods];
+
       // PWA install prompt
       const [installPrompt, setInstallPrompt] = React.useState(null);
       const [showInstallBanner, setShowInstallBanner] = React.useState(false);
@@ -1925,7 +2022,7 @@
       const saveGoals = () => { setGoals(goalDraft); setEditGoals(false); showToast("Goals saved!"); };
 
       const mealGroups = MEAL_TYPES.map(m => ({ meal: m, items: dayEntries.filter(e => e.meal === m) })).filter(g => g.items.length > 0);
-      const filtered = PRESET_FOODS.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+      const filtered = ALL_FOODS.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
       const caloriesLeft = goals.calories - totals.calories;
       const calPct = Math.min((totals.calories / goals.calories) * 100, 100);
       const isToday = selectedDate === todayKey();
@@ -1975,31 +2072,46 @@
                     { key: "sleep", label: "😴 Sleep reminder", timeKey: "sleepTime" },
                     { key: "steps", label: "👟 Step goal alerts", timeKey: null },
                     { key: "challenges", label: "🏆 Challenge updates", timeKey: null },
+                    { key: "water", label: "💧 Water reminders", timeKey: null },
                     { key: "weekly", label: "📊 Weekly summary", timeKey: "weeklyTime" },
                   ].map(item => (
-                    <div key={item.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${C.border}` }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</div>
-                        {item.timeKey && notifSettings[item.key] && (
-                          <input type="time" value={notifSettings[item.timeKey]}
-                            onChange={e => saveNotifSettings({ ...notifSettings, [item.timeKey]: e.target.value })}
-                            style={{ marginTop: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }} />
-                        )}
-                        {item.key === "weekly" && notifSettings.weekly && (
-                          <select value={notifSettings.weeklyDay}
-                            onChange={e => saveNotifSettings({ ...notifSettings, weeklyDay: e.target.value })}
-                            style={{ marginTop: 6, marginLeft: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }}>
-                            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i) => <option key={i} value={i}>{d}</option>)}
-                          </select>
-                        )}
+                    <div key={item.key} style={{ paddingBottom: 12, marginBottom: 12, borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</div>
+                          {item.timeKey && notifSettings[item.key] && (
+                            <input type="time" value={notifSettings[item.timeKey]}
+                              onChange={e => saveNotifSettings({ ...notifSettings, [item.timeKey]: e.target.value })}
+                              style={{ marginTop: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }} />
+                          )}
+                          {item.key === "weekly" && notifSettings.weekly && (
+                            <select value={notifSettings.weeklyDay}
+                              onChange={e => saveNotifSettings({ ...notifSettings, weeklyDay: e.target.value })}
+                              style={{ marginTop: 6, marginLeft: 6, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "5px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }}>
+                              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i) => <option key={i} value={i}>{d}</option>)}
+                            </select>
+                          )}
+                          {item.key === "water" && notifSettings.water && (
+                            <div style={{ marginTop: 8 }}>
+                              <div style={{ fontSize: 12, color: C.textLight, marginBottom: 6 }}>Reminder times (up to 4 per day)</div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                {["waterTime1","waterTime2","waterTime3","waterTime4"].map((tk, i) => (
+                                  <input key={tk} type="time" value={notifSettings[tk] || ""}
+                                    onChange={e => saveNotifSettings({ ...notifSettings, [tk]: e.target.value })}
+                                    style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 13, fontFamily: "inherit", color: C.text }} />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <button onClick={() => saveNotifSettings({ ...notifSettings, [item.key]: !notifSettings[item.key] })}
+                          style={{ width: 48, height: 26, borderRadius: 99, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s",
+                            background: notifSettings[item.key] ? C.green : C.border,
+                            position: "relative", flexShrink: 0, marginLeft: 12 }}>
+                          <div style={{ width: 20, height: 20, borderRadius: 99, background: "#fff", position: "absolute", top: 3, transition: "left 0.2s",
+                            left: notifSettings[item.key] ? 25 : 3 }} />
+                        </button>
                       </div>
-                      <button onClick={() => saveNotifSettings({ ...notifSettings, [item.key]: !notifSettings[item.key] })}
-                        style={{ width: 48, height: 26, borderRadius: 99, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "background 0.2s",
-                          background: notifSettings[item.key] ? C.green : C.border,
-                          position: "relative", flexShrink: 0, marginLeft: 12 }}>
-                        <div style={{ width: 20, height: 20, borderRadius: 99, background: "#fff", position: "absolute", top: 3, transition: "left 0.2s",
-                          left: notifSettings[item.key] ? 25 : 3 }} />
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -2056,6 +2168,11 @@
                       {(notifLog.filter(n => !n.read).length + pendingInvites.length) > 9 ? "9+" : notifLog.filter(n => !n.read).length + pendingInvites.length}
                     </div>
                   )}
+                </button>
+                {/* Dark mode toggle */}
+                <button onClick={toggleDarkMode}
+                  style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", width: 38, height: 38, borderRadius: 99, fontSize: 16, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {darkMode ? "☀️" : "🌙"}
                 </button>
                 <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
                   style={{ background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: 10, padding: "7px 10px", fontSize: 12, cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }} />
@@ -2450,6 +2567,57 @@
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.textLight }}>
                           <span>{recentWeights[0].date.slice(5)}</span>
                           <span>{recentWeights[recentWeights.length-1].date.slice(5)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 📅 Workout Planner */}
+                  <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>📅 This Week's Plan</div>
+                      <button onClick={() => setShowPlanner(p => !p)} style={{ fontSize: 12, color: C.blue, fontWeight: 700, background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>{showPlanner ? "Done" : "Edit"}</button>
+                    </div>
+                    <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                      {Array.from({length:7}, (_,i) => {
+                        const d = new Date(); d.setDate(d.getDate() - d.getDay() + i);
+                        const dk = dateKey(d);
+                        const isToday = dk === todayKey();
+                        const planned = workoutPlan[dk] || [];
+                        const done = (workouts[dk]||[]).length > 0;
+                        return (
+                          <div key={dk} style={{ flex: "0 0 auto", width: 52, textAlign: "center" }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? C.blue : C.textLight, marginBottom: 4 }}>
+                              {d.toLocaleDateString("en-US",{weekday:"short"})}
+                            </div>
+                            <div style={{ width: 44, height: 44, borderRadius: 12, border: isToday ? `2px solid ${C.blue}` : `1px solid ${C.border}`,
+                              background: done ? C.greenLight : planned.length > 0 ? C.blueLight : C.bg,
+                              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", margin: "0 auto", cursor: showPlanner ? "pointer" : "default" }}
+                              onClick={() => { if (showPlanner) { setPlannerDate(dk); } }}>
+                              <div style={{ fontSize: done ? 18 : 14 }}>{done ? "✅" : planned.length > 0 ? "💪" : "—"}</div>
+                            </div>
+                            {planned.length > 0 && <div style={{ fontSize: 9, color: C.textLight, marginTop: 3, lineHeight: 1.2 }}>{planned[0].name.slice(0,8)}</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {showPlanner && (
+                      <div style={{ marginTop: 12, padding: "12px", background: C.bg, borderRadius: 12 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: C.textMid, marginBottom: 8 }}>
+                          Plan for {new Date(plannerDate).toLocaleDateString("en-US",{weekday:"long", month:"short", day:"numeric"})}
+                        </div>
+                        {(workoutPlan[plannerDate]||[]).map(w => (
+                          <div key={w.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                            <span style={{ fontSize:13, color:C.text, fontWeight:700 }}>💪 {w.name}</span>
+                            <button onClick={() => removePlannedWorkout(plannerDate, w.id)} style={{ background:"none", border:"none", color:C.textLight, cursor:"pointer", fontSize:16, fontFamily:"inherit" }}>×</button>
+                          </div>
+                        ))}
+                        <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                          <input placeholder="e.g. Push Day, Leg Day..." value={plannerInput} onChange={e => setPlannerInput(e.target.value)}
+                            onKeyDown={e => { if(e.key==="Enter"&&plannerInput.trim()){savePlannedWorkout(plannerDate, plannerInput.trim());setPlannerInput("");} }}
+                            style={{...inputStyle, flex:1, padding:"9px 12px", fontSize:13}} />
+                          <button onClick={() => { if(plannerInput.trim()){savePlannedWorkout(plannerDate,plannerInput.trim());setPlannerInput("");} }}
+                            style={{ padding:"9px 14px", borderRadius:10, border:"none", background:C.blue, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>+</button>
                         </div>
                       </div>
                     )}
@@ -2867,6 +3035,57 @@
                     + Add to {form.meal}
                   </button>
                 </div>
+
+                {/* 🍽️ Custom Food Creator */}
+                <div style={{ marginTop: 20 }}>
+                  <button onClick={() => setShowCustomFoodForm(p => !p)}
+                    style={{ width:"100%", padding:"12px", borderRadius:12, border:`1.5px dashed ${C.border}`, background:"transparent", color:C.textMid, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                    <span>🍽️</span> {showCustomFoodForm ? "Cancel" : "Create Custom Food"}
+                  </button>
+                  {showCustomFoodForm && (
+                    <div style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:16, marginTop:10 }}>
+                      <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:12 }}>New Custom Food</div>
+                      <input placeholder="Food name (e.g. My Protein Shake)" value={customFoodForm.name}
+                        onChange={e => setCustomFoodForm(f=>({...f,name:e.target.value}))}
+                        style={{...inputStyle, marginBottom:10}} />
+                      <input placeholder="Serving size (e.g. 1 scoop, 8oz)" value={customFoodForm.serving}
+                        onChange={e => setCustomFoodForm(f=>({...f,serving:e.target.value}))}
+                        style={{...inputStyle, marginBottom:10}} />
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+                        {[["calories","Calories","kcal"],["protein","Protein","g"],["carbs","Carbs","g"],["fat","Fat","g"]].map(([k,label,unit]) => (
+                          <div key={k}>
+                            <label style={{fontSize:11,color:C.textLight,fontWeight:700,display:"block",marginBottom:4}}>{label} ({unit})</label>
+                            <input type="number" placeholder="0" value={customFoodForm[k]}
+                              onChange={e => setCustomFoodForm(f=>({...f,[k]:e.target.value}))}
+                              style={{...inputStyle, padding:"9px 12px"}} />
+                          </div>
+                        ))}
+                      </div>
+                      <button onClick={saveCustomFood}
+                        style={{width:"100%",padding:"12px",borderRadius:12,border:"none",background:customFoodForm.name&&customFoodForm.calories?C.green:C.border,color:customFoodForm.name&&customFoodForm.calories?"#fff":C.textLight,fontWeight:800,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
+                        Save to My Foods
+                      </button>
+                    </div>
+                  )}
+                  {/* My Custom Foods list */}
+                  {customFoods.length > 0 && (
+                    <div style={{ marginTop:12 }}>
+                      <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:8}}>My Custom Foods</div>
+                      {customFoods.map(f => (
+                        <div key={f.name} style={{background:C.card,borderRadius:12,border:`1px solid ${C.border}`,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:800,color:C.text}}>{f.name}</div>
+                            <div style={{fontSize:11,color:C.textLight}}>{f.calories}cal · P{f.protein}g · C{f.carbs}g · F{f.fat}g</div>
+                          </div>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={() => selectPreset(f)} style={{padding:"7px 10px",borderRadius:8,border:"none",background:C.blueLight,color:C.blue,fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Use</button>
+                            <button onClick={() => deleteCustomFood(f.name)} style={{padding:"7px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textLight,fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2972,9 +3191,37 @@
               const removeExercise = ei => setActiveWorkout({...activeWorkout, exercises:activeWorkout.exercises.filter((_,i) => i!==ei)});
               const renameExercise = (ei,n) => setActiveWorkout({...activeWorkout, exercises:activeWorkout.exercises.map((ex,i) => i!==ei ? ex : {...ex,name:n})});
               const finishWorkout = () => {
-                saveWorkout({...activeWorkout, endTime: activeWorkout.editing ? activeWorkout.endTime : Date.now(), editing:false});
+                const workout = {...activeWorkout, endTime: activeWorkout.editing ? activeWorkout.endTime : Date.now(), editing:false};
+                saveWorkout(workout);
+                // Check for new PRs and notify
+                if (!activeWorkout.editing && notifPermission === "granted") {
+                  (workout.exercises || []).filter(e => !e.isCardio).forEach(ex => {
+                    const bestSet = ex.sets.filter(s => s.done && s.weight && s.reps)
+                      .reduce((best, s) => {
+                        const vol = parseFloat(s.weight) * parseInt(s.reps);
+                        return vol > best.vol ? { vol, weight: s.weight, reps: s.reps } : best;
+                      }, { vol: 0 });
+                    if (bestSet.vol > 0) {
+                      const existingPR = prs[ex.name];
+                      if (!existingPR || bestSet.vol > existingPR.vol) {
+                        const notifKey = ex.name + "-" + Date.now();
+                        if (!prNotified[ex.name] || prNotified[ex.name] < bestSet.vol) {
+                          fireNotif(
+                            "🏆 New PR: " + ex.name,
+                            `${bestSet.weight}lbs × ${bestSet.reps} reps — that's a personal best! 💪`,
+                            "pr-" + ex.name
+                          );
+                          const updated = { ...prNotified, [ex.name]: bestSet.vol };
+                          setPrNotified(updated);
+                          localStorage.setItem("mt-pr-notified", JSON.stringify(updated));
+                        }
+                      }
+                    }
+                  });
+                }
                 setActiveWorkout(null); setWorkoutTab("log");
                 showToast(activeWorkout.editing ? "Workout updated! ✏️" : "Workout saved! 💪");
+                haptic("success");
               };
               const logCardio = () => {
                 if (!cardioForm.duration) return;
@@ -3717,6 +3964,40 @@
                           </div>
                         );
                       })}
+
+                      {/* Challenge History */}
+                      {challengeHistory.length > 0 && (
+                        <div style={{marginTop:8}}>
+                          <div style={{fontSize:14, fontWeight:800, color:C.text, marginBottom:10}}>📜 Past Challenges</div>
+                          {(() => {
+                            const wins = challengeHistory.filter(h=>h.result==="win").length;
+                            const losses = challengeHistory.filter(h=>h.result==="loss").length;
+                            const ties = challengeHistory.filter(h=>h.result==="tie").length;
+                            return (
+                              <div style={{background:C.card, borderRadius:12, border:"1px solid "+C.border, padding:"10px 14px", marginBottom:10, display:"flex", gap:16, justifyContent:"center"}}>
+                                <div style={{textAlign:"center"}}><div style={{fontSize:22, fontWeight:900, color:C.green}}>{wins}</div><div style={{fontSize:11, color:C.textLight, fontWeight:700}}>Wins</div></div>
+                                <div style={{textAlign:"center"}}><div style={{fontSize:22, fontWeight:900, color:C.red}}>{losses}</div><div style={{fontSize:11, color:C.textLight, fontWeight:700}}>Losses</div></div>
+                                <div style={{textAlign:"center"}}><div style={{fontSize:22, fontWeight:900, color:C.orange}}>{ties}</div><div style={{fontSize:11, color:C.textLight, fontWeight:700}}>Ties</div></div>
+                                <div style={{textAlign:"center"}}><div style={{fontSize:22, fontWeight:900, color:C.blue}}>{challengeHistory.length}</div><div style={{fontSize:11, color:C.textLight, fontWeight:700}}>Total</div></div>
+                              </div>
+                            );
+                          })()}
+                          {challengeHistory.slice(0,5).map((h,i) => (
+                            <div key={i} style={{background:C.card, borderRadius:12, border:"1px solid "+C.border, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+                              <div>
+                                <div style={{fontSize:13, fontWeight:800, color:C.text}}>{h.name}</div>
+                                <div style={{fontSize:11, color:C.textLight, marginTop:2}}>vs {h.opponentName} · {h.myProgress.toLocaleString()} vs {h.oppProgress.toLocaleString()}</div>
+                              </div>
+                              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                                <div style={{fontSize:13, fontWeight:800, padding:"4px 10px", borderRadius:99, background:h.result==="win"?C.greenLight:h.result==="tie"?C.orangeLight:C.redLight, color:h.result==="win"?C.green:h.result==="tie"?C.orange:C.red}}>
+                                  {h.result==="win"?"🏆 W":h.result==="tie"?"🤝 T":"😤 L"}
+                                </div>
+                                <button onClick={() => rematch(h)} style={{padding:"6px 10px", borderRadius:8, border:"1px solid "+C.border, background:"transparent", color:C.textMid, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit"}}>🔄</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 
