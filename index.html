@@ -1845,7 +1845,7 @@
         showToast("Trash talk sent 🗣️");
       };
 
-      // Subscribe to taunts for active challenges
+      const challengeIds = Object.keys(challenges).join(",");
       useEffect(() => {
         const unsubs = [];
         Object.keys(challenges).forEach(id => {
@@ -1857,7 +1857,7 @@
           unsubs.push(() => ref.off("value", handler));
         });
         return () => unsubs.forEach(u => u());
-      }, [Object.keys(challenges).join(",")]);
+      }, [challengeIds]);
 
       // ── WORKOUT PLANNER ──────────────────────────────────────────────────────
       const savePlannedWorkout = (dateKey, name) => {
@@ -3847,16 +3847,16 @@
                           <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>Latest: {new Date(latest.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
                           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                             {[
-                              { label: "Weight", value: latest.weight, unit: bodyWeightUnit, color: C.blue },
-                              { label: "Body Fat", value: latest.bodyFat, unit: "%", color: C.orange },
-                              { label: "Muscle", value: latest.muscle, unit: bodyWeightUnit, color: C.green },
-                            ].map(s => s.value ? (
+                              { label: "Weight", key: "weight", unit: bodyWeightUnit, color: C.blue },
+                              { label: "Body Fat", key: "bodyFat", unit: "%", color: C.orange },
+                              { label: "Muscle", key: "muscle", unit: bodyWeightUnit, color: C.green },
+                            ].map(s => latest[s.key] ? (
                               <div key={s.label} style={{ background: C.bg, borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
-                                <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{s.value}<span style={{ fontSize: 11 }}>{s.unit}</span></div>
+                                <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{latest[s.key]}<span style={{ fontSize: 11 }}>{s.unit}</span></div>
                                 <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700 }}>{s.label}</div>
-                                {first && first[s.label.toLowerCase().replace(" ","")] && (
-                                  <div style={{ fontSize: 10, color: parseFloat(s.value) < parseFloat(first[s.label.toLowerCase().replace(" ","")]) ? C.green : C.red, fontWeight: 700 }}>
-                                    {parseFloat(s.value) < parseFloat(first[s.label.toLowerCase().replace(" ","")]) ? "▼" : "▲"} {Math.abs(parseFloat(s.value) - parseFloat(first[s.label.toLowerCase().replace(" ","")])).toFixed(1)}
+                                {first && first[s.key] && (
+                                  <div style={{ fontSize: 10, color: parseFloat(latest[s.key]) < parseFloat(first[s.key]) ? C.green : C.red, fontWeight: 700 }}>
+                                    {parseFloat(latest[s.key]) < parseFloat(first[s.key]) ? "\u25BC" : "\u25B2"} {Math.abs(parseFloat(latest[s.key]) - parseFloat(first[s.key])).toFixed(1)}
                                   </div>
                                 )}
                               </div>
