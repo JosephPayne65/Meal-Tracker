@@ -881,7 +881,6 @@
       bg: "#0f1a12", card: "#1a2e1e", border: "#2a4030",
       text: "#e8f3e8", textMid: "#9abaa0", textLight: "#5a7a60",
     };
-    const C = darkMode ? DARK : LIGHT;
 
     const inputStyle = {
       width: "100%", background: "#f0f5f0", border: `1.5px solid ${C.border}`,
@@ -985,6 +984,7 @@
       const [customFoodForm, setCustomFoodForm] = useState({ name:"", calories:"", protein:"", carbs:"", fat:"", serving:"" });
       // Dark mode
       const [darkMode, setDarkMode] = useState(() => localStorage.getItem("mt-dark-mode") === "true");
+      const C = darkMode ? DARK : LIGHT;
       // Workout planner show state
       const [showPlanner, setShowPlanner] = useState(false);
       const [plannerInput, setPlannerInput] = useState("");
