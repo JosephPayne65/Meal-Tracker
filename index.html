@@ -3587,6 +3587,7 @@
                         const daysLeft = Math.max(0, Math.ceil((ch.endsAt-now)/86400000));
                         const ended = now > ch.endsAt;
                         const typeInfo = TYPES.find(t => t.id===ch.type) || TYPES[0];
+                        const unitLabel = ch.type==="steps"?"steps":ch.type==="workout"?"sessions":ch.type==="running"?"mi":ch.type==="calories"?"cal":ch.type==="active"?"mins":"days";
                         const winner = ended ? (myProgress>oppProgress?"you":myProgress<oppProgress?"them":"tie") : null;
                         const leading = !ended && opponent ? (myProgress>oppProgress?"you":myProgress<oppProgress?"them":"tied") : null;
                         return (
