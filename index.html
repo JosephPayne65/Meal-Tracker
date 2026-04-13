@@ -979,6 +979,24 @@
       const [goalDraft, setGoalDraft] = useState(emptyGoals);
       const [selectedDate, setSelectedDate] = useState(todayKey());
       const [toast, setToast] = useState(null);
+      // Water tracking
+      const [waterLog, setWaterLog] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-water") || "{}"); } catch { return {}; } });
+      const [waterGoal] = useState(64); // oz
+      // Body composition
+      const [bodyComp, setBodyComp] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-bodycomp") || "[]"); } catch { return []; } });
+      // Meal templates
+      const [mealTemplates, setMealTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-meal-templates") || "[]"); } catch { return []; } });
+      const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+      const [templateName, setTemplateName] = useState("");
+      // Progress photos
+      const [progressPhotos, setProgressPhotos] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-progress-photos") || "[]"); } catch { return []; } });
+      const [showPhotoTab, setShowPhotoTab] = useState(false);
+      // Workout planner
+      const [workoutPlan, setWorkoutPlan] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-workout-plan") || "{}"); } catch { return {}; } });
+      // Challenge history & taunts
+      const [challengeHistory, setChallengeHistory] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-challenge-history") || "[]"); } catch { return []; } });
+      const [taunts, setTaunts] = useState({});
+      const [tauntInput, setTauntInput] = useState("");
       const [notifPermission, setNotifPermission] = useState(() => typeof Notification !== "undefined" ? Notification.permission : "default");
       const [notifSettings, setNotifSettings] = useState(() => {
         try { return JSON.parse(localStorage.getItem("mt-notif-settings") || "null") || {
@@ -1293,32 +1311,34 @@
 
       const createChallenge = async () => {
         if (!googleUser || !newChallenge.name) return;
-        if (newChallenge.type !== "steps" && !newChallenge.goal) return;
         const finalDuration = newChallenge.customDuration ? parseInt(newChallenge.customDuration) : newChallenge.duration;
         if (!finalDuration || finalDuration < 1) return;
         const id = Math.random().toString(36).substr(2, 8).toUpperCase();
-        const playerKey = userId;
+        const typeInfo = [
+          { id:"steps", unit:"steps" }, { id:"workout", unit:"sessions" },
+          { id:"running", unit:"miles" }, { id:"calories", unit:"cal" },
+          { id:"active", unit:"mins" }, { id:"streak", unit:"days" },
+        ].find(t => t.id === newChallenge.type) || { unit:"count" };
         const challenge = {
           id, name: newChallenge.name,
           type: newChallenge.type,
-          goal: newChallenge.type === "steps" ? 0 : parseFloat(newChallenge.goal),
-          unit: newChallenge.unit, duration: finalDuration,
-          mostWins: newChallenge.type === "steps",
+          goal: 0, unit: typeInfo.unit,
+          duration: finalDuration,
+          mostWins: true,
           createdAt: Date.now(),
           endsAt: Date.now() + finalDuration * 86400000,
           createdBy: userId,
           players: {
-            [playerKey]: { name: userName, email: userEmail, photo: userPhoto, uid: userId, progress: 0, dailySteps: {} }
+            [userId]: { name: userName, email: userEmail, photo: userPhoto || "", uid: userId, progress: 0 }
           }
         };
         await db.ref("challenges/" + id).set(challenge);
         await db.ref("userChallenges/" + userId + "/" + id).set(true);
         subscribeToChallenge(id);
         setChallengeTab("browse");
-        setNewChallenge({ type:"workout", goal:"", unit:"sessions", duration:7, customDuration:"", name:"" });
+        setNewChallenge({ type:"steps", goal:"", unit:"steps", duration:7, customDuration:"", name:"" });
         showToast("Challenge created! 🏆");
-
-        // Send invite if email provided
+        haptic("success");
         if (inviteEmail.trim()) {
           await db.ref("challengeInvites/" + inviteEmail.replace(/\./g,",") + "/" + id).set({
             challengeId: id, name: challenge.name, type: challenge.type,
@@ -1731,6 +1751,125 @@
         setInstallPrompt(null);
       };
 
+      // ── WATER TRACKING ──────────────────────────────────────────────────────
+      const logWater = (oz) => {
+        const key = todayKey();
+        setWaterLog(prev => {
+          const updated = { ...prev, [key]: Math.min((prev[key] || 0) + oz, 200) };
+          localStorage.setItem("mt-water", JSON.stringify(updated));
+          return updated;
+        });
+        haptic("light");
+      };
+      const resetWater = () => {
+        const key = todayKey();
+        setWaterLog(prev => { const u = {...prev, [key]: 0}; localStorage.setItem("mt-water", JSON.stringify(u)); return u; });
+      };
+      const todayWater = waterLog[todayKey()] || 0;
+
+      // ── BODY COMPOSITION ────────────────────────────────────────────────────
+      const logBodyComp = (entry) => {
+        const updated = [...bodyComp.filter(e => e.date !== entry.date), entry].sort((a,b) => a.date.localeCompare(b.date));
+        setBodyComp(updated);
+        localStorage.setItem("mt-bodycomp", JSON.stringify(updated));
+        showToast("Body stats saved!");
+        haptic("success");
+      };
+
+      // ── MEAL TEMPLATES ───────────────────────────────────────────────────────
+      const saveMealTemplate = () => {
+        if (!templateName.trim() || dayEntries.length === 0) return;
+        const template = { id: Date.now(), name: templateName.trim(), entries: dayEntries, savedAt: Date.now() };
+        const updated = [...mealTemplates, template];
+        setMealTemplates(updated);
+        localStorage.setItem("mt-meal-templates", JSON.stringify(updated));
+        setTemplateName("");
+        setShowSaveTemplate(false);
+        showToast("Template saved: " + template.name);
+        haptic("success");
+      };
+      const loadMealTemplate = (template) => {
+        const newEntries = template.entries.map(e => ({ ...e, id: Date.now() + Math.random() }));
+        setEntries(prev => ({ ...prev, [selectedDate]: [...(prev[selectedDate]||[]), ...newEntries] }));
+        showToast("Loaded: " + template.name);
+        haptic("success");
+      };
+      const deleteMealTemplate = (id) => {
+        const updated = mealTemplates.filter(t => t.id !== id);
+        setMealTemplates(updated);
+        localStorage.setItem("mt-meal-templates", JSON.stringify(updated));
+      };
+
+      // ── RECOVERY SCORE ───────────────────────────────────────────────────────
+      const recoveryScore = (() => {
+        if (!fitHealth) return null;
+        let score = 50;
+        const sleep = fitHealth.sleepMins || 0;
+        const rhr = fitHealth.rhr || 0;
+        // Sleep score (0-35 pts)
+        if (sleep >= 480) score += 35;
+        else if (sleep >= 420) score += 28;
+        else if (sleep >= 360) score += 18;
+        else if (sleep >= 300) score += 8;
+        // Resting HR score (0-25 pts) — lower is better
+        if (rhr > 0) {
+          if (rhr < 55) score += 25;
+          else if (rhr < 65) score += 18;
+          else if (rhr < 75) score += 10;
+          else if (rhr < 85) score += 4;
+        }
+        // Steps bonus (0-10 pts)
+        const steps = fitHealth.steps || 0;
+        if (steps >= 10000) score += 10;
+        else if (steps >= 7500) score += 7;
+        else if (steps >= 5000) score += 4;
+        return Math.min(Math.round(score), 100);
+      })();
+
+      const recoveryLabel = recoveryScore === null ? null
+        : recoveryScore >= 80 ? { label: "Peak", color: "#2e6b3a", bg: "#e8f3e8" }
+        : recoveryScore >= 65 ? { label: "Good", color: "#5a9a4a", bg: "#eef5e8" }
+        : recoveryScore >= 50 ? { label: "Moderate", color: "#c9883a", bg: "#f5ede0" }
+        : { label: "Low", color: "#b84040", bg: "#f5e8e8" };
+
+      // ── TAUNTS ───────────────────────────────────────────────────────────────
+      const sendTaunt = async (challengeId) => {
+        if (!tauntInput.trim() || !googleUser) return;
+        const ref = db.ref("challengeTaunts/" + challengeId);
+        const newTaunt = { from: userName, photo: userPhoto || "", msg: tauntInput.trim(), at: Date.now() };
+        await ref.push(newTaunt);
+        setTauntInput("");
+        haptic("medium");
+        showToast("Trash talk sent 🗣️");
+      };
+
+      // Subscribe to taunts for active challenges
+      useEffect(() => {
+        const unsubs = [];
+        Object.keys(challenges).forEach(id => {
+          const ref = db.ref("challengeTaunts/" + id);
+          const handler = ref.on("value", snap => {
+            const data = snap.val();
+            setTaunts(prev => ({ ...prev, [id]: data ? Object.values(data).sort((a,b) => a.at - b.at) : [] }));
+          });
+          unsubs.push(() => ref.off("value", handler));
+        });
+        return () => unsubs.forEach(u => u());
+      }, [Object.keys(challenges).join(",")]);
+
+      // ── WORKOUT PLANNER ──────────────────────────────────────────────────────
+      const savePlannedWorkout = (dateKey, name) => {
+        const updated = { ...workoutPlan, [dateKey]: [...(workoutPlan[dateKey] || []), { id: Date.now(), name }] };
+        setWorkoutPlan(updated);
+        localStorage.setItem("mt-workout-plan", JSON.stringify(updated));
+        haptic("light");
+      };
+      const removePlannedWorkout = (dateKey, id) => {
+        const updated = { ...workoutPlan, [dateKey]: (workoutPlan[dateKey] || []).filter(w => w.id !== id) };
+        setWorkoutPlan(updated);
+        localStorage.setItem("mt-workout-plan", JSON.stringify(updated));
+      };
+
       const dayEntries = entries[selectedDate] || [];
       const totals = dayEntries.reduce(
         (acc, e) => ({ calories: acc.calories + e.calories * e.qty, protein: acc.protein + e.protein * e.qty, carbs: acc.carbs + e.carbs * e.qty, fat: acc.fat + e.fat * e.qty }),
@@ -2078,6 +2217,50 @@
                       </button>
                     ))}
                   </div>
+
+                  {/* 💧 Water Tracker */}
+                  <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: C.text }}>💧 Water Intake</div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>{todayWater} / {waterGoal} oz today</div>
+                      </div>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: todayWater >= waterGoal ? C.green : C.blue }}>
+                        {Math.round((todayWater / waterGoal) * 100)}%
+                      </div>
+                    </div>
+                    <div style={{ height: 8, background: C.border, borderRadius: 99, overflow: "hidden", marginBottom: 12 }}>
+                      <div style={{ height: "100%", width: `${Math.min((todayWater/waterGoal)*100,100)}%`, background: todayWater >= waterGoal ? C.green : "#4a9fc8", borderRadius: 99, transition: "width 0.4s ease" }} />
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {[8, 16, 20, 32].map(oz => (
+                        <button key={oz} onClick={() => logWater(oz)} style={{ flex: 1, padding: "10px 4px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, fontWeight: 800, fontSize: 12, color: C.textMid, cursor: "pointer", fontFamily: "inherit" }}>
+                          +{oz}oz
+                        </button>
+                      ))}
+                      <button onClick={resetWater} style={{ padding: "10px 12px", borderRadius: 12, border: `1.5px solid ${C.border}`, background: C.bg, fontWeight: 700, fontSize: 12, color: C.textLight, cursor: "pointer", fontFamily: "inherit" }}>↺</button>
+                    </div>
+                  </div>
+
+                  {/* 🔋 Recovery Score */}
+                  {recoveryScore !== null && (
+                    <div style={{ background: recoveryLabel.bg, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, display: "flex", alignItems: "center", gap: 16 }}>
+                      <div style={{ width: 64, height: 64, borderRadius: 99, background: recoveryLabel.color, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{recoveryScore}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.8)", fontWeight: 700 }}>/ 100</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: recoveryLabel.color }}>🔋 Recovery: {recoveryLabel.label}</div>
+                        <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
+                          {fitHealth?.sleepMins > 0 ? `${Math.floor(fitHealth.sleepMins/60)}h ${fitHealth.sleepMins%60}m sleep` : "No sleep data"}
+                          {fitHealth?.rhr > 0 ? ` · ${fitHealth.rhr} bpm resting HR` : ""}
+                        </div>
+                        <div style={{ fontSize: 12, color: C.textLight, marginTop: 2 }}>
+                          {recoveryScore >= 80 ? "You're primed — crush it today 💪" : recoveryScore >= 65 ? "Feeling good — solid session ahead" : recoveryScore >= 50 ? "Moderate — listen to your body" : "Low — consider light activity or rest"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Health Dashboard Card */}
                   {fitConnected && (
@@ -2472,7 +2655,43 @@
                       <MacroBar label="Protein" value={totals.protein} goal={goals.protein} color={C.blue} />
                       <MacroBar label="Carbs" value={totals.carbs} goal={goals.carbs} color={C.orange} />
                       <MacroBar label="Fat" value={totals.fat} goal={goals.fat} color={C.purple} />
+                      {/* Save as template */}
+                      {!showSaveTemplate ? (
+                        <button onClick={() => setShowSaveTemplate(true)} style={{ width:"100%", marginTop:14, padding:"10px", borderRadius:10, border:`1.5px dashed ${C.border}`, background:"transparent", color:C.textLight, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                          💾 Save today as meal template
+                        </button>
+                      ) : (
+                        <div style={{ marginTop:14, display:"flex", gap:8 }}>
+                          <input placeholder="Template name (e.g. Bulk Day)" value={templateName} onChange={e => setTemplateName(e.target.value)}
+                            style={{...inputStyle, flex:1, padding:"10px 12px"}} />
+                          <button onClick={saveMealTemplate} style={{ padding:"10px 14px", borderRadius:10, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Save</button>
+                          <button onClick={() => setShowSaveTemplate(false)} style={{ padding:"10px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:"transparent", color:C.textLight, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Meal templates */}
+                    {mealTemplates.length > 0 && (
+                      <div style={{ marginTop:14 }}>
+                        <div style={{ fontSize:14, fontWeight:800, color:C.text, marginBottom:10 }}>📋 Meal Templates</div>
+                        {mealTemplates.map(t => {
+                          const cal = t.entries.reduce((a,e) => a+e.calories*e.qty, 0);
+                          const pro = t.entries.reduce((a,e) => a+e.protein*e.qty, 0);
+                          return (
+                            <div key={t.id} style={{ background:C.card, borderRadius:14, border:`1px solid ${C.border}`, padding:"12px 14px", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                              <div>
+                                <div style={{ fontSize:14, fontWeight:800, color:C.text }}>{t.name}</div>
+                                <div style={{ fontSize:12, color:C.textLight, marginTop:2 }}>{t.entries.length} items · {Math.round(cal)} cal · {Math.round(pro)}g protein</div>
+                              </div>
+                              <div style={{ display:"flex", gap:6 }}>
+                                <button onClick={() => loadMealTemplate(t)} style={{ padding:"8px 12px", borderRadius:10, border:"none", background:C.blueLight, color:C.blue, fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>Load</button>
+                                <button onClick={() => deleteMealTemplate(t.id)} style={{ padding:"8px 10px", borderRadius:10, border:`1px solid ${C.border}`, background:"transparent", color:C.textLight, fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -3234,9 +3453,12 @@
             {/* CHALLENGES TAB */}
             {tab === "challenge" && (() => {
               const TYPES = [
-                { id:"workout", label:"Workout Sessions", icon:"🏋️", units:["sessions"] },
-                { id:"running", label:"Running Distance", icon:"🏃", units:["miles","km"] },
-                { id:"steps",   label:"Step Count",       icon:"👟", units:["steps"] },
+                { id:"steps",   label:"Step Count",   icon:"👟", desc:"Most steps wins" },
+                { id:"workout", label:"Workouts",      icon:"🏋️", desc:"Most sessions wins" },
+                { id:"running", label:"Running",       icon:"🏃", desc:"Most miles wins" },
+                { id:"calories",label:"Calories Burned",icon:"🔥", desc:"Most calories wins" },
+                { id:"active",  label:"Active Minutes",icon:"⚡", desc:"Most active mins wins" },
+                { id:"streak",  label:"Log Streak",    icon:"📋", desc:"Most days logged wins" },
               ];
               const now = Date.now();
               const myChallenges = Object.values(challenges);
@@ -3370,7 +3592,7 @@
                               <div>
                                 <div style={{fontSize:17, fontWeight:900, color:C.text}}>{typeInfo.icon} {ch.name}</div>
                                 <div style={{fontSize:13, color:C.textLight, fontWeight:600, marginTop:2}}>
-                                  {isMostWins?"Most steps wins":`Goal: ${ch.goal} ${ch.unit}`} · {ended?"Ended":daysLeft+" day"+(daysLeft!==1?"s":"")+" left"}
+                                  {typeInfo?.desc || "Most wins"} · {ended?"Ended":daysLeft+" day"+(daysLeft!==1?"s":"")+" left"}
                                 </div>
                               </div>
                               <div style={{display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4}}>
@@ -3395,7 +3617,7 @@
                                     {userPhoto && <img src={userPhoto} alt="" style={{width:20,height:20,borderRadius:99,objectFit:"cover"}} />}
                                     <span style={{fontSize:14, fontWeight:800, color:C.blue}}>{userName} (you)</span>
                                   </div>
-                                  <span style={{fontSize:14, fontWeight:800, color:C.blue}}>{isMostWins?myProgress.toLocaleString()+" steps":myProgress+" / "+ch.goal+" "+ch.unit}</span>
+                                  <span style={{fontSize:14, fontWeight:800, color:C.blue}}>{myProgress.toLocaleString()+" "+unitLabel}</span>
                                 </div>
                                 <div style={{height:10, background:C.border, borderRadius:99, overflow:"hidden"}}>
                                   <div style={{height:"100%", width:pct+"%", background:C.blue, borderRadius:99, transition:"width 0.5s ease"}} />
@@ -3410,7 +3632,7 @@
                                       {opponent.photo && <img src={opponent.photo} alt="" style={{width:20,height:20,borderRadius:99,objectFit:"cover"}} />}
                                       <span style={{fontSize:14, fontWeight:800, color:C.orange}}>{opponent.name}</span>
                                     </div>
-                                    <span style={{fontSize:14, fontWeight:800, color:C.orange}}>{isMostWins?oppProgress.toLocaleString()+" steps":oppProgress+" / "+ch.goal+" "+ch.unit}</span>
+                                    <span style={{fontSize:14, fontWeight:800, color:C.orange}}>{oppProgress.toLocaleString()+" "+unitLabel}</span>
                                   </div>
                                   <div style={{height:10, background:C.border, borderRadius:99, overflow:"hidden"}}>
                                     <div style={{height:"100%", width:oppPct+"%", background:C.orange, borderRadius:99, transition:"width 0.5s ease"}} />
@@ -3466,6 +3688,27 @@
                                 })()}
                               </div>
                             )}
+                            {/* 🗣️ Taunts */}
+                            {opponent && (
+                              <div style={{marginBottom:10}}>
+                                <div style={{fontSize:13, fontWeight:800, color:C.textMid, marginBottom:8}}>🗣️ Trash Talk</div>
+                                {(taunts[ch.id] || []).slice(-3).map((t, i) => (
+                                  <div key={i} style={{display:"flex", gap:8, marginBottom:6, alignItems:"flex-start"}}>
+                                    {t.photo ? <img src={t.photo} alt="" style={{width:24,height:24,borderRadius:99,objectFit:"cover",flexShrink:0}} /> : <div style={{width:24,height:24,borderRadius:99,background:C.blueLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.blue,flexShrink:0}}>{t.from[0]}</div>}
+                                    <div style={{background:t.from===userName?C.blueLight:C.bg, borderRadius:"0 10px 10px 10px", padding:"7px 10px", flex:1}}>
+                                      <div style={{fontSize:11, fontWeight:800, color:t.from===userName?C.blue:C.textMid, marginBottom:2}}>{t.from}</div>
+                                      <div style={{fontSize:13, color:C.text}}>{t.msg}</div>
+                                    </div>
+                                  </div>
+                                ))}
+                                <div style={{display:"flex", gap:8, marginTop:8}}>
+                                  <input placeholder="Send a taunt... 😤" value={tauntInput} onChange={e => setTauntInput(e.target.value)}
+                                    onKeyDown={e => e.key==="Enter" && sendTaunt(ch.id)}
+                                    style={{...inputStyle, flex:1, padding:"9px 12px", fontSize:13}} />
+                                  <button onClick={() => sendTaunt(ch.id)} style={{padding:"9px 14px", borderRadius:10, border:"none", background:C.orange, color:"#fff", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>Send</button>
+                                </div>
+                              </div>
+                            )}
                             <button onClick={() => leaveChallenge(ch.id)} style={{width:"100%", padding:"9px", borderRadius:10, border:"1px solid "+C.border, background:"transparent", color:C.textLight, fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>Leave Challenge</button>
                           </div>
                         );
@@ -3484,45 +3727,41 @@
                       <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:8}}>Invite Opponent (Gmail)</label>
                       <input placeholder="friend@gmail.com" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} style={{...inputStyle, marginBottom:14}} />
 
-                      <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:8}}>Type</label>
+                      <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:8}}>Challenge Type</label>
                       <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8, marginBottom:14}}>
                         {TYPES.map(t => (
-                          <button key={t.id} onClick={() => setNewChallenge(n => ({...n, type:t.id, unit:t.units[0]}))}
+                          <button key={t.id} onClick={() => setNewChallenge(n => ({...n, type:t.id}))}
                             style={{padding:"12px 6px", borderRadius:12, border:newChallenge.type===t.id?"2px solid "+C.blue:"2px solid "+C.border,
                               background:newChallenge.type===t.id?C.blueLight:C.bg, color:newChallenge.type===t.id?C.blue:C.textMid,
-                              fontWeight:700, fontSize:12, cursor:"pointer", fontFamily:"inherit", display:"flex", flexDirection:"column", alignItems:"center", gap:4}}>
-                            <span style={{fontSize:20}}>{t.icon}</span>{t.label}
+                              fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", display:"flex", flexDirection:"column", alignItems:"center", gap:4}}>
+                            <span style={{fontSize:22}}>{t.icon}</span>
+                            <span style={{fontSize:11, fontWeight:800}}>{t.label}</span>
                           </button>
                         ))}
                       </div>
 
-                      <div style={{display:"grid", gridTemplateColumns:newChallenge.type==="steps"?"1fr":"1fr 1fr", gap:10, marginBottom:14}}>
-                        {newChallenge.type!=="steps" && (
-                          <div>
-                            <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:6}}>Goal ({newChallenge.unit})</label>
-                            <input type="number" placeholder={newChallenge.type==="running"?"20":"5"} value={newChallenge.goal} onChange={e => setNewChallenge(n => ({...n, goal:e.target.value}))} style={{...inputStyle}} />
-                          </div>
-                        )}
-                        {newChallenge.type==="steps" && (
-                          <div style={{background:C.greenLight, borderRadius:12, padding:"12px 14px"}}>
-                            <div style={{fontSize:14, fontWeight:800, color:C.green}}>👟 Most Steps Wins</div>
-                            <div style={{fontSize:13, color:C.textMid, marginTop:2}}>No goal needed — highest count at end wins</div>
-                          </div>
-                        )}
+                      {/* Most wins info */}
+                      <div style={{background:C.greenLight, borderRadius:12, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:10}}>
+                        <span style={{fontSize:20}}>🏆</span>
                         <div>
-                          <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:6}}>Duration</label>
-                          <div style={{display:"flex", gap:4, marginBottom:6}}>
-                            {[3,7,14,30].map(d => (
-                              <button key={d} onClick={() => setNewChallenge(n => ({...n, duration:d, customDuration:""}))}
-                                style={{flex:1, padding:"9px 2px", borderRadius:10, border:(newChallenge.duration===d&&!newChallenge.customDuration)?"2px solid "+C.blue:"1.5px solid "+C.border,
-                                  background:(newChallenge.duration===d&&!newChallenge.customDuration)?C.blueLight:C.bg, color:(newChallenge.duration===d&&!newChallenge.customDuration)?C.blue:C.textMid,
-                                  fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
-                                {d}d
-                              </button>
-                            ))}
-                          </div>
-                          <input type="number" placeholder="Custom days" value={newChallenge.customDuration} onChange={e => setNewChallenge(n => ({...n, customDuration:e.target.value}))} style={{...inputStyle}} />
+                          <div style={{fontSize:13, fontWeight:800, color:C.green}}>Most wins — no goal needed</div>
+                          <div style={{fontSize:12, color:C.textMid}}>Whoever has the highest {TYPES.find(t=>t.id===newChallenge.type)?.desc?.split(" ").slice(1).join(" ")||"count"} at the end wins</div>
                         </div>
+                      </div>
+
+                      <div style={{marginBottom:14}}>
+                        <label style={{fontSize:13, color:C.textMid, fontWeight:700, display:"block", marginBottom:6}}>Duration</label>
+                        <div style={{display:"flex", gap:4, marginBottom:6}}>
+                          {[3,7,14,30].map(d => (
+                            <button key={d} onClick={() => setNewChallenge(n => ({...n, duration:d, customDuration:""}))}
+                              style={{flex:1, padding:"9px 2px", borderRadius:10, border:(newChallenge.duration===d&&!newChallenge.customDuration)?"2px solid "+C.blue:"1.5px solid "+C.border,
+                                background:(newChallenge.duration===d&&!newChallenge.customDuration)?C.blueLight:C.bg, color:(newChallenge.duration===d&&!newChallenge.customDuration)?C.blue:C.textMid,
+                                fontWeight:700, fontSize:13, cursor:"pointer", fontFamily:"inherit"}}>
+                              {d}d
+                            </button>
+                          ))}
+                        </div>
+                        <input type="number" placeholder="Custom days (e.g. 21)" value={newChallenge.customDuration} onChange={e => setNewChallenge(n => ({...n, customDuration:e.target.value}))} style={{...inputStyle}} />
                       </div>
 
                       <div style={{background:C.blueLight, borderRadius:12, padding:12, marginBottom:16, fontSize:13, color:C.blue, fontWeight:700}}>
@@ -3531,8 +3770,8 @@
 
                       <button onClick={createChallenge}
                         style={{width:"100%", padding:"15px", borderRadius:14, border:"none",
-                          background:(newChallenge.name&&(newChallenge.type==="steps"||newChallenge.goal))?C.blue:C.border,
-                          color:(newChallenge.name&&(newChallenge.type==="steps"||newChallenge.goal))?"#fff":C.textLight,
+                          background:newChallenge.name?C.blue:C.border,
+                          color:newChallenge.name?"#fff":C.textLight,
                           fontWeight:800, fontSize:17, cursor:"pointer", fontFamily:"inherit"}}>
                         Create Challenge 🚀
                       </button>
@@ -3583,9 +3822,9 @@
 
                 {/* Sub-tab toggle */}
                 <div style={{ display: "flex", background: C.border, borderRadius: 12, padding: 3, marginBottom: 16 }}>
-                  {[["view", "📊 My Goals"], ["calc", "🧮 Calculator"]].map(([t, label]) => (
+                  {[["view", "📊 Goals"], ["body", "💪 Body"], ["photos", "📷 Photos"], ["calc", "🧮 Calc"]].map(([t, label]) => (
                     <button key={t} onClick={() => setGoalsSubTab(t)}
-                      style={{ flex: 1, padding: "9px", borderRadius: 10, fontSize: 13, fontWeight: 800, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
+                      style={{ flex: 1, padding: "9px 4px", borderRadius: 10, fontSize: 11, fontWeight: 800, border: "none", cursor: "pointer", fontFamily: "inherit", transition: "all 0.2s",
                         background: goalsSubTab === t ? C.card : "transparent",
                         color: goalsSubTab === t ? C.blue : C.textLight,
                         boxShadow: goalsSubTab === t ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
@@ -3593,6 +3832,125 @@
                     </button>
                   ))}
                 </div>
+
+                {/* BODY COMPOSITION TAB */}
+                {goalsSubTab === "body" && (() => {
+                  const [bodyForm, setBodyForm] = React.useState({ date: todayKey(), weight: "", bodyFat: "", muscle: "", notes: "" });
+                  const latest = bodyComp.length ? bodyComp[bodyComp.length - 1] : null;
+                  const first = bodyComp.length ? bodyComp[0] : null;
+                  return (
+                    <div>
+                      {/* Stats summary */}
+                      {latest && (
+                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>Latest: {new Date(latest.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                            {[
+                              { label: "Weight", value: latest.weight, unit: bodyWeightUnit, color: C.blue },
+                              { label: "Body Fat", value: latest.bodyFat, unit: "%", color: C.orange },
+                              { label: "Muscle", value: latest.muscle, unit: bodyWeightUnit, color: C.green },
+                            ].map(s => s.value ? (
+                              <div key={s.label} style={{ background: C.bg, borderRadius: 12, padding: "10px 12px", textAlign: "center" }}>
+                                <div style={{ fontSize: 20, fontWeight: 900, color: s.color }}>{s.value}<span style={{ fontSize: 11 }}>{s.unit}</span></div>
+                                <div style={{ fontSize: 11, color: C.textLight, fontWeight: 700 }}>{s.label}</div>
+                                {first && first[s.label.toLowerCase().replace(" ","")] && (
+                                  <div style={{ fontSize: 10, color: parseFloat(s.value) < parseFloat(first[s.label.toLowerCase().replace(" ","")]) ? C.green : C.red, fontWeight: 700 }}>
+                                    {parseFloat(s.value) < parseFloat(first[s.label.toLowerCase().replace(" ","")]) ? "▼" : "▲"} {Math.abs(parseFloat(s.value) - parseFloat(first[s.label.toLowerCase().replace(" ","")])).toFixed(1)}
+                                  </div>
+                                )}
+                              </div>
+                            ) : null)}
+                          </div>
+                        </div>
+                      )}
+                      {/* Log entry */}
+                      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14 }}>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>Log Body Stats</div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                          {[["weight","Weight ("+bodyWeightUnit+")","e.g. 185"],["bodyFat","Body Fat %","e.g. 18"],["muscle","Muscle Mass","e.g. 155"]].map(([k,label,ph]) => (
+                            <div key={k}>
+                              <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>{label}</label>
+                              <input type="number" placeholder={ph} value={bodyForm[k]} onChange={e => setBodyForm(f => ({...f,[k]:e.target.value}))} style={{...inputStyle, padding:"10px 12px"}} />
+                            </div>
+                          ))}
+                          <div>
+                            <label style={{ fontSize: 12, color: C.textMid, fontWeight: 700, display: "block", marginBottom: 4 }}>Date</label>
+                            <input type="date" value={bodyForm.date} onChange={e => setBodyForm(f => ({...f,date:e.target.value}))} style={{...inputStyle, padding:"10px 12px"}} />
+                          </div>
+                        </div>
+                        <button onClick={() => { logBodyComp({...bodyForm}); setBodyForm({date:todayKey(),weight:"",bodyFat:"",muscle:"",notes:""}); }}
+                          style={{ width:"100%", padding:"13px", borderRadius:12, border:"none", background:C.green, color:"#fff", fontWeight:800, fontSize:15, cursor:"pointer", fontFamily:"inherit" }}>
+                          Save Body Stats
+                        </button>
+                      </div>
+                      {/* History */}
+                      {bodyComp.length > 1 && (
+                        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>History</div>
+                          {[...bodyComp].reverse().slice(0,10).map((e,i) => (
+                            <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
+                              <div style={{ fontSize: 13, color: C.textMid, fontWeight: 700 }}>{new Date(e.date).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</div>
+                              <div style={{ display:"flex", gap:12 }}>
+                                {e.weight && <span style={{ fontSize:13, fontWeight:800, color:C.blue }}>{e.weight}{bodyWeightUnit}</span>}
+                                {e.bodyFat && <span style={{ fontSize:13, fontWeight:800, color:C.orange }}>{e.bodyFat}%</span>}
+                                {e.muscle && <span style={{ fontSize:13, fontWeight:800, color:C.green }}>{e.muscle}{bodyWeightUnit}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* PROGRESS PHOTOS TAB */}
+                {goalsSubTab === "photos" && (() => {
+                  const handlePhoto = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const photo = { id: Date.now(), date: todayKey(), dataUrl: ev.target.result, note: "" };
+                      const updated = [...progressPhotos, photo];
+                      setProgressPhotos(updated);
+                      localStorage.setItem("mt-progress-photos", JSON.stringify(updated));
+                      showToast("Photo saved! 📷");
+                      haptic("success");
+                    };
+                    reader.readAsDataURL(file);
+                  };
+                  return (
+                    <div>
+                      <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, padding: 16, marginBottom: 14, textAlign: "center" }}>
+                        <div style={{ fontSize: 36, marginBottom: 8 }}>📷</div>
+                        <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 4 }}>Progress Photos</div>
+                        <div style={{ fontSize: 13, color: C.textLight, marginBottom: 14 }}>Stored privately on your device</div>
+                        <label style={{ display:"inline-block", padding:"12px 24px", borderRadius:12, background:C.blue, color:"#fff", fontWeight:800, fontSize:14, cursor:"pointer" }}>
+                          📸 Add Photo
+                          <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display:"none" }} />
+                        </label>
+                      </div>
+                      {progressPhotos.length === 0 ? (
+                        <div style={{ textAlign:"center", padding:"30px 20px", color:C.textLight }}>
+                          <div style={{ fontSize:14 }}>No photos yet — tap Add Photo to start tracking</div>
+                        </div>
+                      ) : (
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                          {[...progressPhotos].reverse().map(p => (
+                            <div key={p.id} style={{ borderRadius:14, overflow:"hidden", border:`1px solid ${C.border}`, position:"relative" }}>
+                              <img src={p.dataUrl} alt="" style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block" }} />
+                              <div style={{ padding:"8px 10px", background:C.card }}>
+                                <div style={{ fontSize:12, fontWeight:700, color:C.textMid }}>{new Date(p.date).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                              </div>
+                              <button onClick={() => { const u=progressPhotos.filter(x=>x.id!==p.id); setProgressPhotos(u); localStorage.setItem("mt-progress-photos",JSON.stringify(u)); }}
+                                style={{ position:"absolute", top:6, right:6, width:28, height:28, borderRadius:99, background:"rgba(0,0,0,0.5)", border:"none", color:"#fff", fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {goalsSubTab === "view" && !editGoals && (
                   <>
