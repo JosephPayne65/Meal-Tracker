@@ -988,6 +988,8 @@
       const [mealTemplates, setMealTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-meal-templates") || "[]"); } catch { return []; } });
       const [showSaveTemplate, setShowSaveTemplate] = useState(false);
       const [templateName, setTemplateName] = useState("");
+      // Body comp form state (must be at top level, not inside render)
+      const [bodyForm, setBodyForm] = useState({ date: todayKey(), weight: "", bodyFat: "", muscle: "", notes: "" });
       // Progress photos
       const [progressPhotos, setProgressPhotos] = useState(() => { try { return JSON.parse(localStorage.getItem("mt-progress-photos") || "[]"); } catch { return []; } });
       const [showPhotoTab, setShowPhotoTab] = useState(false);
@@ -3835,7 +3837,6 @@
 
                 {/* BODY COMPOSITION TAB */}
                 {goalsSubTab === "body" && (() => {
-                  const [bodyForm, setBodyForm] = React.useState({ date: todayKey(), weight: "", bodyFat: "", muscle: "", notes: "" });
                   const latest = bodyComp.length ? bodyComp[bodyComp.length - 1] : null;
                   const first = bodyComp.length ? bodyComp[0] : null;
                   return (
