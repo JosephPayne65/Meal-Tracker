@@ -3454,6 +3454,7 @@
 
             {/* CHALLENGES TAB */}
             {tab === "challenge" && (() => {
+              try {
               const TYPES = [
                 { id:"steps",   label:"Step Count",   icon:"👟", desc:"Most steps wins" },
                 { id:"workout", label:"Workouts",      icon:"🏋️", desc:"Most sessions wins" },
@@ -3818,6 +3819,14 @@
                   )}
                 </div>
               );
+              } catch(err) {
+                return (
+                  <div style={{padding:20, background:"#fdecea", borderRadius:14, margin:16}}>
+                    <div style={{fontSize:15, fontWeight:800, color:"#b84040", marginBottom:8}}>⚠️ Challenge tab error</div>
+                    <div style={{fontSize:13, color:"#b84040", fontFamily:"monospace", wordBreak:"break-all"}}>{err.message}</div>
+                  </div>
+                );
+              }
             })()}
             {tab === "goals" && (
               <div style={{ animation: "fadeIn 0.2s ease" }}>
